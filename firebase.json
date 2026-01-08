@@ -1,0 +1,44 @@
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "geoforestv1",
+          "appId": "1:73639013419:android:9defddaf5cb5960c0a0e6e",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "geoforestv1",
+          "configurations": {
+            "android": "1:73639013419:android:9defddaf5cb5960c0a0e6e",
+            "ios": "1:73639013419:ios:b5f6008d639050550a0e6e",
+            "macos": "1:73639013419:ios:b5f6008d639050550a0e6e",
+            "web": "1:73639013419:web:0a48627ddb53e9e80a0e6e",
+            "windows": "1:73639013419:web:a0c7638c649103ac0a0e6e"
+          }
+        }
+      }
+    }
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ]
+    }
+  ],
+  "firestore": {
+    "database": "(default)",
+    "location": "southamerica-east1",
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  }
+}

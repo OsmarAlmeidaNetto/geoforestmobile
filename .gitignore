@@ -1,0 +1,62 @@
+# Miscellaneous (Arquivos temporários e logs)
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ/Android Studio
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code (Segurança máxima para suas chaves de API)
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/settings.json
+
+# Flutter/Dart/Pub
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+
+# Android específico (Essencial!)
+android/local.properties
+android/key.properties
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# iOS específico
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GoogleService-Info.plist
+**/ios/Flutter/ephemeral/
+
+# Firebase (Configurações sensíveis)
+lib/firebase_options.dart
+/android/app/google-services.json
+
+# Chaves de Assinatura (NUNCA SUBIR)
+*.jks
+*.keystore
+*.p12
+*.pem
+key.properties
+
+# Ambientes e Segredos
+.env
+.env.*
