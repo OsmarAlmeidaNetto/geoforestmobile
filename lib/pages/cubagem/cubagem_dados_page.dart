@@ -70,7 +70,7 @@ class _CubagemDadosPageState extends State<CubagemDadosPage> {
     _valorCAPController = TextEditingController(text: (arvore?.valorCAP ?? 0) > 0 ? arvore!.valorCAP.toString() : '');
     _alturaBaseController = TextEditingController(text: (arvore?.alturaBase ?? 0) > 0 ? arvore!.alturaBase.toString() : '');
     _classeController = TextEditingController(text: arvore?.classe ?? '');
-    _tipoMedidaCAP = arvore?.tipoMedidaCAP ?? 'fita';
+    _tipoMedidaCAP = (arvore?.tipoMedidaCAP ?? 'fita').toLowerCase(); 
     _observacaoController = TextEditingController(text: arvore?.observacao ?? '');
     _rfController = TextEditingController(text: arvore?.rf ?? '');
     
@@ -387,7 +387,8 @@ class _CubagemDadosPageState extends State<CubagemDadosPage> {
                   DropdownMenuItem(value: 'suta', child: Text('DAP com Suta (cm)')),
                 ],
                 onChanged: (String? newValue) { if (newValue != null) setState(() => _tipoMedidaCAP = newValue); },
-              ),
+                ),
+                                
               const SizedBox(height: 16),
               TextFormField(controller: _valorCAPController, decoration: const InputDecoration(labelText: 'Valor Medido (cm)', border: OutlineInputBorder()), keyboardType: const TextInputType.numberWithOptions(decimal: true), validator: _validadorObrigatorio),
               const SizedBox(height: 16),

@@ -4,6 +4,7 @@ import 'package:geoforestv1/models/parcela_model.dart';
 import 'csv_import_strategy.dart';
 import 'package:proj4dart/proj4dart.dart' as proj4;
 import 'package:geoforestv1/data/datasources/local/database_helper.dart';
+import 'dart:convert';
 
 
 class PlanejamentoImportStrategy extends BaseImportStrategy {
@@ -93,6 +94,15 @@ class PlanejamentoImportStrategy extends BaseImportStrategy {
       );
       
       final map = novaParcela.toMap();
+      
+      // --- CORREÇÃO AQUI ---
+      // O toMap() gera 'arvores': [], mas o SQLite quer Texto ou Null.
+      // Como é um planejamento, não tem árvores ainda, então removemos ou salvamos string vazia.
+      if (map['arvores'] is List) {
+        map['arvores'] = jsonEncode(map['arvores']); // Converte [] para "[]"
+      }
+      // ---------------------
+
       map['lastModified'] = now;
       await txn.insert('parcelas', map);
       result.parcelasCriadas++;

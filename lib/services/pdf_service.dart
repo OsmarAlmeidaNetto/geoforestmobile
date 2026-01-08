@@ -22,6 +22,7 @@ import 'package:path_provider_android/path_provider_android.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:permission_handler/permission_handler.dart';
+import 'package:geoforestv1/models/vehicle_checklist_model.dart';
 
 class PdfService {
   final _analiseRepository = AnaliseRepository();
@@ -450,6 +451,149 @@ class PdfService {
     await _salvarEAbriPdf(context, pdf, nomeArquivo);
   }
 
+  Future<void> gerarChecklistVeicularPdf(BuildContext context, VehicleChecklist checklist) async {
+    final pdf = pw.Document();
+
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat.a4,
+        margin: const pw.EdgeInsets.all(20),
+        build: (pw.Context ctx) {
+          return pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              // Cabeçalho
+              pw.Container(
+                decoration: pw.BoxDecoration(border: pw.Border.all()),
+                padding: const pw.EdgeInsets.all(5),
+                child: pw.Column(children: [
+                  pw.Text("CHECK LIST DE VEÍCULOS", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
+                  pw.SizedBox(height: 5),
+                  
+                  // Linha 1: Nome e CNH
+                  pw.Row(
+                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                    children: [
+                      pw.Text("Motorista: ${checklist.nomeMotorista}", style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text("Categoria CNH: ${checklist.categoriaCnh ?? ''}", style: const pw.TextStyle(fontSize: 10)),
+                      pw.Text("Vencimento: ${checklist.vencimentoCnh != null ? DateFormat('dd/MM/yyyy').format(checklist.vencimentoCnh!) : ''}", style: const pw.TextStyle(fontSize: 10)),
+                    ]
+                  ),
+                  pw.Divider(height: 5, thickness: 0.5),
+
+                  // Linha 2: Veículo
+                  if (checklist.isMotorista) 
+                    pw.Row(
+                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, 
+                      children: [
+                        pw.Text("Prefixo: ${checklist.prefixo ?? ''}", style: const pw.TextStyle(fontSize: 10)),
+                        pw.Text("Placa: ${checklist.placa ?? ''}", style: const pw.TextStyle(fontSize: 10)),
+                        pw.Text("KM: ${checklist.kmAtual?.toStringAsFixed(0) ?? ''}", style: const pw.TextStyle(fontSize: 10)),
+                        pw.Text("Veículo: ${checklist.modeloVeiculo ?? ''}", style: const pw.TextStyle(fontSize: 10)),
+                      ]
+                    )
+                  else 
+                     pw.Center(child: pw.Text("REGISTRO DE NÃO-UTILIZAÇÃO DE VEÍCULO", style: const pw.TextStyle(fontSize: 10))),
+                  
+                  pw.Divider(height: 5, thickness: 0.5),
+                  
+                  // Linha 3: Data
+                  pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Text("Data: ${DateFormat('dd/MM/yyyy HH:mm').format(checklist.dataRegistro)}", style: const pw.TextStyle(fontSize: 9))
+                  ),
+                ]),
+              ),
+              
+              pw.SizedBox(height: 10),
+
+              if (checklist.isMotorista) 
+                pw.Table(
+                  border: pw.TableBorder.all(),
+                  columnWidths: {
+                    0: const pw.FixedColumnWidth(25), // N
+                    1: const pw.FlexColumnWidth(),    // Descricao
+                    2: const pw.FixedColumnWidth(30), // C
+                    3: const pw.FixedColumnWidth(30), // NC
+                    4: const pw.FixedColumnWidth(30), // NA
+                  },
+                  children: [
+                    // Header da Tabela
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(color: PdfColors.grey300),
+                      children: [
+                        pw.Center(child: pw.Text("N.", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                        pw.Padding(padding: const pw.EdgeInsets.only(left: 4), child: pw.Text("Descrição", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                        pw.Center(child: pw.Text("C", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                        pw.Center(child: pw.Text("N.C", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                        pw.Center(child: pw.Text("N.A", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
+                      ]
+                    ),
+                    // Linhas
+                    ...checklistItensDescricao.asMap().entries.map((entry) {
+                      final index = entry.key + 1;
+                      final desc = entry.value.substring(entry.value.indexOf('.') + 1).trim(); 
+                      final status = checklist.itens[index.toString()];
+
+                      return pw.TableRow(
+                        children: [
+                          // Removido o 'const' dos TextStyles abaixo
+                          pw.Center(child: pw.Text("$index", style: pw.TextStyle(fontSize: 9))),
+                          pw.Padding(padding: const pw.EdgeInsets.only(left: 4, top: 2, bottom: 2), child: pw.Text(desc, style: pw.TextStyle(fontSize: 9))),
+                          pw.Center(child: pw.Text(status == 'C' ? 'X' : '', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
+                          pw.Center(child: pw.Text(status == 'NC' ? 'X' : '', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
+                          pw.Center(child: pw.Text(status == 'NA' ? 'X' : '', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
+                        ]
+                      );
+                    }).toList()
+                  ]
+                ),
+
+              pw.SizedBox(height: 10),
+              
+              // Observações
+              pw.Container(
+                width: double.infinity,
+                height: 60,
+                decoration: pw.BoxDecoration(border: pw.Border.all()),
+                padding: const pw.EdgeInsets.all(5),
+                child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text("Observações:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
+                  pw.Text(checklist.observacoes ?? '', style: const pw.TextStyle(fontSize: 10)),
+                ])
+              ),
+
+              pw.Spacer(),
+
+              // Assinaturas (Dois campos lado a lado)
+              pw.Padding(
+                padding: const pw.EdgeInsets.only(top: 20),
+                child: pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceAround, // Espaçamento igual
+                  children: [
+                    pw.Column(children: [
+                      pw.Container(width: 180, height: 1, color: PdfColors.black), // Linha
+                      pw.SizedBox(height: 4),
+                      pw.Text("Assinatura do Motorista", style: const pw.TextStyle(fontSize: 10)),
+                    ]),
+                    pw.Column(children: [
+                      pw.Container(width: 180, height: 1, color: PdfColors.black), // Linha
+                      pw.SizedBox(height: 4),
+                      pw.Text("Assinatura do Responsável da Empresa", style: const pw.TextStyle(fontSize: 10)),
+                    ]),
+                  ]
+                ),
+              )
+            ],
+          );
+        },
+      ),
+    );
+
+    final nomeArquivo = 'Checklist_${checklist.isMotorista ? "Veiculo" : "Passageiro"}_${DateFormat('yyyyMMdd').format(checklist.dataRegistro)}.pdf';
+    await _salvarEAbriPdf(context, pdf, nomeArquivo);
+  }
+
   
   Future<void> gerarRelatorioSimulacaoPdf({
     required BuildContext context,
@@ -490,6 +634,7 @@ class PdfService {
         'Simulacao_Desbaste_${nomeTalhao.replaceAll(RegExp(r'[^a-zA-Z0-9]'), '_')}.pdf';
     await _salvarEAbriPdf(context, pdf, nomeArquivo);
   }
+
 
   //endregion
 
@@ -1147,3 +1292,4 @@ class PdfService {
     ]);
   }
 }
+

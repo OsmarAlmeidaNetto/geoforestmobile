@@ -7,14 +7,22 @@ import 'package:uuid/uuid.dart';
 import 'package:geoforestv1/data/datasources/local/database_constants.dart';
 
 final Map<int, String> proj4Definitions = {
-  31978: '+proj=utm +zone=18 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31979: '+proj=utm +zone=19 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31980: '+proj=utm +zone=20 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31981: '+proj=utm +zone=21 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31982: '+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31983: '+proj=utm +zone=23 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31984: '+proj=utm +zone=24 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31985: '+proj=utm +zone=25 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31978:
+      '+proj=utm +zone=18 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31979:
+      '+proj=utm +zone=19 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31980:
+      '+proj=utm +zone=20 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31981:
+      '+proj=utm +zone=21 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31982:
+      '+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31983:
+      '+proj=utm +zone=23 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31984:
+      '+proj=utm +zone=24 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31985:
+      '+proj=utm +zone=25 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
 };
 
 class DatabaseHelper {
@@ -30,14 +38,15 @@ class DatabaseHelper {
   Future<Database> _initDatabase() async {
     return await openDatabase(
       join(await getDatabasesPath(), 'geoforestv1.db'),
-      version: 49,
+      version: 51,
       onConfigure: _onConfigure,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );
   }
 
-  Future<void> _onConfigure(Database db) async => await db.execute('PRAGMA foreign_keys = ON');
+  Future<void> _onConfigure(Database db) async =>
+      await db.execute('PRAGMA foreign_keys = ON');
 
   Future<void> _onCreate(Database db, int version) async {
     await db.execute('''
@@ -54,7 +63,7 @@ class DatabaseHelper {
         ${DbProjetos.lastModified} TEXT NOT NULL 
       )
     ''');
-    
+
     await db.execute('''
       CREATE TABLE ${DbAtividades.tableName} (
         ${DbAtividades.id} INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -133,6 +142,7 @@ class DatabaseHelper {
         ${DbParcelas.lado1} REAL,
         ${DbParcelas.lado2} REAL,
         ${DbParcelas.declividade} REAL,
+        arvores TEXT,
         ${DbParcelas.lastModified} TEXT NOT NULL,
         FOREIGN KEY (${DbParcelas.talhaoId}) REFERENCES ${DbTalhoes.tableName} (${DbTalhoes.id}) ON DELETE CASCADE
       )
@@ -182,7 +192,8 @@ class DatabaseHelper {
         ${DbCubagensArvores.dataColeta} TEXT,
         ${DbCubagensArvores.exportada} INTEGER DEFAULT 0 NOT NULL,
         ${DbCubagensArvores.isSynced} INTEGER DEFAULT 0 NOT NULL,
-        ${DbCubagensArvores.nomeLider} TEXT,
+        ${DbCubagensArvores.nomeLider} TEXT,        
+        secoes TEXT,        
         ${DbCubagensArvores.lastModified} TEXT NOT NULL,
         FOREIGN KEY (${DbCubagensArvores.talhaoId}) REFERENCES ${DbTalhoes.tableName} (${DbTalhoes.id}) ON DELETE CASCADE
       )
@@ -235,9 +246,30 @@ class DatabaseHelper {
         UNIQUE(${DbDiarioDeCampo.dataRelatorio}, ${DbDiarioDeCampo.nomeLider})
       )
     ''');
-    
-    await db.execute('CREATE INDEX idx_arvores_parcelaId ON ${DbArvores.tableName}(${DbArvores.parcelaId})');
-    await db.execute('CREATE INDEX idx_cubagens_secoes_cubagemArvoreId ON ${DbCubagensSecoes.tableName}(${DbCubagensSecoes.cubagemArvoreId})');
+
+     await db.execute('''
+      CREATE TABLE checklist_veicular (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        data_registro TEXT NOT NULL,
+        uid_usuario TEXT,
+        nome_motorista TEXT,
+        placa TEXT,
+        km_atual REAL,
+        modelo_veiculo TEXT,
+        prefixo TEXT,           
+        categoria_cnh TEXT,     
+        vencimento_cnh TEXT,    
+        is_motorista INTEGER NOT NULL,
+        itens_json TEXT,
+        observacoes TEXT,
+        lastModified TEXT NOT NULL
+      )
+    ''');
+
+    await db.execute(
+        'CREATE INDEX idx_arvores_parcelaId ON ${DbArvores.tableName}(${DbArvores.parcelaId})');
+    await db.execute(
+        'CREATE INDEX idx_cubagens_secoes_cubagemArvoreId ON ${DbCubagensSecoes.tableName}(${DbCubagensSecoes.cubagemArvoreId})');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -245,60 +277,94 @@ class DatabaseHelper {
       debugPrint("Executando migração de banco de dados para a versão $v...");
       switch (v) {
         case 25:
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.uuid} TEXT');
-          final parcelasSemUuid = await db.query(DbParcelas.tableName, where: '${DbParcelas.uuid} IS NULL');
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.uuid} TEXT');
+          final parcelasSemUuid = await db.query(DbParcelas.tableName,
+              where: '${DbParcelas.uuid} IS NULL');
           for (final p in parcelasSemUuid) {
-            await db.update(DbParcelas.tableName, {DbParcelas.uuid: const Uuid().v4()}, where: '${DbParcelas.id} = ?', whereArgs: [p[DbParcelas.id]]);
+            await db.update(
+                DbParcelas.tableName, {DbParcelas.uuid: const Uuid().v4()},
+                where: '${DbParcelas.id} = ?', whereArgs: [p[DbParcelas.id]]);
           }
           break;
         case 26:
-          await db.execute('ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.isSynced} INTEGER DEFAULT 0 NOT NULL');
+          await db.execute(
+              'ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.isSynced} INTEGER DEFAULT 0 NOT NULL');
           break;
         case 27:
-          await db.execute("ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.status} TEXT NOT NULL DEFAULT 'ativo'");
+          await db.execute(
+              "ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.status} TEXT NOT NULL DEFAULT 'ativo'");
           break;
         case 28:
-          await db.execute("ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.nomeLider} TEXT");
-          await db.execute("ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.projetoId} INTEGER");
+          await db.execute(
+              "ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.nomeLider} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.projetoId} INTEGER");
           break;
         case 29:
-          await db.execute("ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.licenseId} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.licenseId} TEXT");
           break;
         case 30:
-          await db.execute("ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.delegadoPorLicenseId} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.delegadoPorLicenseId} TEXT");
           break;
         case 31:
-          await db.execute("ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.nomeLider} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.nomeLider} TEXT");
           break;
         case 32:
-          await db.execute("ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.municipio} TEXT");
-          await db.execute("ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.estado} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.municipio} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.estado} TEXT");
           break;
         case 33:
-          await db.execute("ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.lastModified} TEXT");
-          await db.execute("ALTER TABLE ${DbAtividades.tableName} ADD COLUMN ${DbAtividades.lastModified} TEXT");
-          await db.execute("ALTER TABLE ${DbFazendas.tableName} ADD COLUMN ${DbFazendas.lastModified} TEXT");
-          await db.execute("ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.lastModified} TEXT");
-          await db.execute("ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.lastModified} TEXT");
-          await db.execute("ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.lastModified} TEXT");
-          await db.execute("ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.lastModified} TEXT");
-          await db.execute("ALTER TABLE ${DbCubagensSecoes.tableName} ADD COLUMN ${DbCubagensSecoes.lastModified} TEXT");
-    
+          await db.execute(
+              "ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.lastModified} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbAtividades.tableName} ADD COLUMN ${DbAtividades.lastModified} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbFazendas.tableName} ADD COLUMN ${DbFazendas.lastModified} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.lastModified} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.lastModified} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.lastModified} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.lastModified} TEXT");
+          await db.execute(
+              "ALTER TABLE ${DbCubagensSecoes.tableName} ADD COLUMN ${DbCubagensSecoes.lastModified} TEXT");
+
           final now = DateTime.now().toIso8601String();
-          await db.update(DbProjetos.tableName, {DbProjetos.lastModified: now}, where: '${DbProjetos.lastModified} IS NULL');
-          await db.update(DbAtividades.tableName, {DbAtividades.lastModified: now}, where: '${DbAtividades.lastModified} IS NULL');
-          await db.update(DbFazendas.tableName, {DbFazendas.lastModified: now}, where: '${DbFazendas.lastModified} IS NULL');
-          await db.update(DbTalhoes.tableName, {DbTalhoes.lastModified: now}, where: '${DbTalhoes.lastModified} IS NULL');
-          await db.update(DbParcelas.tableName, {DbParcelas.lastModified: now}, where: '${DbParcelas.lastModified} IS NULL');
-          await db.update(DbArvores.tableName, {DbArvores.lastModified: now}, where: '${DbArvores.lastModified} IS NULL');
-          await db.update(DbCubagensArvores.tableName, {DbCubagensArvores.lastModified: now}, where: '${DbCubagensArvores.lastModified} IS NULL');
-          await db.update(DbCubagensSecoes.tableName, {DbCubagensSecoes.lastModified: now}, where: '${DbCubagensSecoes.lastModified} IS NULL');
+          await db.update(DbProjetos.tableName, {DbProjetos.lastModified: now},
+              where: '${DbProjetos.lastModified} IS NULL');
+          await db.update(
+              DbAtividades.tableName, {DbAtividades.lastModified: now},
+              where: '${DbAtividades.lastModified} IS NULL');
+          await db.update(DbFazendas.tableName, {DbFazendas.lastModified: now},
+              where: '${DbFazendas.lastModified} IS NULL');
+          await db.update(DbTalhoes.tableName, {DbTalhoes.lastModified: now},
+              where: '${DbTalhoes.lastModified} IS NULL');
+          await db.update(DbParcelas.tableName, {DbParcelas.lastModified: now},
+              where: '${DbParcelas.lastModified} IS NULL');
+          await db.update(DbArvores.tableName, {DbArvores.lastModified: now},
+              where: '${DbArvores.lastModified} IS NULL');
+          await db.update(DbCubagensArvores.tableName,
+              {DbCubagensArvores.lastModified: now},
+              where: '${DbCubagensArvores.lastModified} IS NULL');
+          await db.update(
+              DbCubagensSecoes.tableName, {DbCubagensSecoes.lastModified: now},
+              where: '${DbCubagensSecoes.lastModified} IS NULL');
           break;
         case 34:
-          await db.execute('ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.projetoId} INTEGER');
+          await db.execute(
+              'ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.projetoId} INTEGER');
           break;
         case 35:
-          await db.execute('ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.referenciaRf} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbProjetos.tableName} ADD COLUMN ${DbProjetos.referenciaRf} TEXT');
           break;
         case 36:
           await db.execute('''
@@ -314,21 +380,29 @@ class DatabaseHelper {
           ''');
           break;
         case 37:
-           await db.execute('ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.alturaDano} REAL');
+          await db.execute(
+              'ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.alturaDano} REAL');
           break;
         case 38:
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.up} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.up} TEXT');
           break;
         case 39:
           try {
-            await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN up_temp_string TEXT');
-            await db.execute('UPDATE ${DbParcelas.tableName} SET up_temp_string = ${DbParcelas.up}');
-            await db.execute('ALTER TABLE ${DbParcelas.tableName} DROP COLUMN ${DbParcelas.up}');
-            await db.execute('ALTER TABLE ${DbParcelas.tableName} RENAME COLUMN up_temp_string TO ${DbParcelas.up}');
+            await db.execute(
+                'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN up_temp_string TEXT');
+            await db.execute(
+                'UPDATE ${DbParcelas.tableName} SET up_temp_string = ${DbParcelas.up}');
+            await db.execute(
+                'ALTER TABLE ${DbParcelas.tableName} DROP COLUMN ${DbParcelas.up}');
+            await db.execute(
+                'ALTER TABLE ${DbParcelas.tableName} RENAME COLUMN up_temp_string TO ${DbParcelas.up}');
           } catch (e) {
-            debugPrint("Aviso na migração 39 (esperado se a coluna '${DbParcelas.up}' já era TEXT): $e");
+            debugPrint(
+                "Aviso na migração 39 (esperado se a coluna '${DbParcelas.up}' já era TEXT): $e");
             if (!await _columnExists(db, DbParcelas.tableName, DbParcelas.up)) {
-              await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.up} TEXT');
+              await db.execute(
+                  'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.up} TEXT');
             }
           }
           break;
@@ -336,35 +410,52 @@ class DatabaseHelper {
           debugPrint("Migração v40 pulada, lógica incorporada na v41.");
           break;
         case 41:
-          await db.execute('ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.codigo3} TEXT');
-          await db.execute('ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.tora} TEXT');
-          
-          await db.execute('ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.bloco} TEXT');
-          await db.execute('ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.up} TEXT');
-          await db.execute('ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.materialGenetico} TEXT');
-          await db.execute('ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.dataPlantio} TEXT');
-          
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.altitude} REAL');
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.referenciaRf} TEXT');
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.ciclo} TEXT');
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.rotacao} INTEGER');
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.tipoParcela} TEXT');
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.formaParcela} TEXT');
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.lado1} REAL');
-          await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.lado2} REAL');
-          
-          if(await _columnExists(db, DbParcelas.tableName, 'raio')) {
-            await db.execute('UPDATE ${DbParcelas.tableName} SET ${DbParcelas.lado1} = raio WHERE raio IS NOT NULL');
+          await db.execute(
+              'ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.codigo3} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.tora} TEXT');
+
+          await db.execute(
+              'ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.bloco} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.up} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.materialGenetico} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbTalhoes.tableName} ADD COLUMN ${DbTalhoes.dataPlantio} TEXT');
+
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.altitude} REAL');
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.referenciaRf} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.ciclo} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.rotacao} INTEGER');
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.tipoParcela} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.formaParcela} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.lado1} REAL');
+          await db.execute(
+              'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.lado2} REAL');
+
+          if (await _columnExists(db, DbParcelas.tableName, 'raio')) {
+            await db.execute(
+                'UPDATE ${DbParcelas.tableName} SET ${DbParcelas.lado1} = raio WHERE raio IS NOT NULL');
           }
-          if(await _columnExists(db, DbParcelas.tableName, 'largura')) {
-            await db.execute('UPDATE ${DbParcelas.tableName} SET ${DbParcelas.lado1} = largura WHERE largura IS NOT NULL AND ${DbParcelas.lado1} IS NULL');
+          if (await _columnExists(db, DbParcelas.tableName, 'largura')) {
+            await db.execute(
+                'UPDATE ${DbParcelas.tableName} SET ${DbParcelas.lado1} = largura WHERE largura IS NOT NULL AND ${DbParcelas.lado1} IS NULL');
           }
-           if(await _columnExists(db, DbParcelas.tableName, 'comprimento')) {
-            await db.execute('UPDATE ${DbParcelas.tableName} SET ${DbParcelas.lado2} = comprimento WHERE comprimento IS NOT NULL');
+          if (await _columnExists(db, DbParcelas.tableName, 'comprimento')) {
+            await db.execute(
+                'UPDATE ${DbParcelas.tableName} SET ${DbParcelas.lado2} = comprimento WHERE comprimento IS NOT NULL');
           }
 
           await db.transaction((txn) async {
-              await txn.execute('''
+            await txn.execute('''
                 CREATE TABLE parcelas_temp AS SELECT 
                   ${DbParcelas.id}, ${DbParcelas.uuid}, ${DbParcelas.talhaoId}, ${DbParcelas.nomeFazenda}, ${DbParcelas.nomeTalhao}, ${DbParcelas.idParcela}, ${DbParcelas.areaMetrosQuadrados}, 
                   ${DbParcelas.observacao}, ${DbParcelas.latitude}, ${DbParcelas.longitude}, ${DbParcelas.altitude}, ${DbParcelas.dataColeta}, ${DbParcelas.status}, ${DbParcelas.exportada}, ${DbParcelas.isSynced}, 
@@ -372,20 +463,26 @@ class DatabaseHelper {
                   ${DbParcelas.ciclo}, ${DbParcelas.rotacao}, ${DbParcelas.tipoParcela}, ${DbParcelas.formaParcela}, ${DbParcelas.lado1}, ${DbParcelas.lado2}, ${DbParcelas.lastModified} 
                 FROM ${DbParcelas.tableName}
               ''');
-              await txn.execute('DROP TABLE ${DbParcelas.tableName}');
-              await txn.execute('ALTER TABLE parcelas_temp RENAME TO ${DbParcelas.tableName}');
+            await txn.execute('DROP TABLE ${DbParcelas.tableName}');
+            await txn.execute(
+                'ALTER TABLE parcelas_temp RENAME TO ${DbParcelas.tableName}');
           });
           break;
         case 42:
-          await db.execute('ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.observacao} TEXT');
-          await db.execute('ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.latitude} REAL');
-          await db.execute('ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.longitude} REAL');
+          await db.execute(
+              'ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.observacao} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.latitude} REAL');
+          await db.execute(
+              'ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.longitude} REAL');
           break;
         case 43:
-          await db.execute('ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.metodoCubagem} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.metodoCubagem} TEXT');
           break;
         case 44:
-          await db.execute('ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.rf} TEXT');
+          await db.execute(
+              'ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.rf} TEXT');
           break;
         case 45:
           await db.execute('''
@@ -410,23 +507,32 @@ class DatabaseHelper {
             GROUP BY ${DbDiarioDeCampo.dataRelatorio}, ${DbDiarioDeCampo.nomeLider}
           ''');
           await db.execute('DROP TABLE ${DbDiarioDeCampo.tableName}');
-          await db.execute('ALTER TABLE diario_de_campo_temp RENAME TO ${DbDiarioDeCampo.tableName}');
+          await db.execute(
+              'ALTER TABLE diario_de_campo_temp RENAME TO ${DbDiarioDeCampo.tableName}');
           break;
         case 46:
-          await db.execute('ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.dataColeta} TEXT');
-          await db.execute('UPDATE ${DbCubagensArvores.tableName} SET ${DbCubagensArvores.dataColeta} = ${DbCubagensArvores.lastModified} WHERE ${DbCubagensArvores.dataColeta} IS NULL');
+          await db.execute(
+              'ALTER TABLE ${DbCubagensArvores.tableName} ADD COLUMN ${DbCubagensArvores.dataColeta} TEXT');
+          await db.execute(
+              'UPDATE ${DbCubagensArvores.tableName} SET ${DbCubagensArvores.dataColeta} = ${DbCubagensArvores.lastModified} WHERE ${DbCubagensArvores.dataColeta} IS NULL');
           break;
         case 47:
-          if (!await _columnExists(db, DbDiarioDeCampo.tableName, DbDiarioDeCampo.outrasDespesasValor)) {
-            await db.execute('ALTER TABLE ${DbDiarioDeCampo.tableName} ADD COLUMN ${DbDiarioDeCampo.outrasDespesasValor} REAL');
+          if (!await _columnExists(db, DbDiarioDeCampo.tableName,
+              DbDiarioDeCampo.outrasDespesasValor)) {
+            await db.execute(
+                'ALTER TABLE ${DbDiarioDeCampo.tableName} ADD COLUMN ${DbDiarioDeCampo.outrasDespesasValor} REAL');
           }
-          if (!await _columnExists(db, DbDiarioDeCampo.tableName, DbDiarioDeCampo.outrasDespesasDescricao)) {
-            await db.execute('ALTER TABLE ${DbDiarioDeCampo.tableName} ADD COLUMN ${DbDiarioDeCampo.outrasDespesasDescricao} TEXT');
+          if (!await _columnExists(db, DbDiarioDeCampo.tableName,
+              DbDiarioDeCampo.outrasDespesasDescricao)) {
+            await db.execute(
+                'ALTER TABLE ${DbDiarioDeCampo.tableName} ADD COLUMN ${DbDiarioDeCampo.outrasDespesasDescricao} TEXT');
           }
           break;
         case 48:
-          if (!await _columnExists(db, DbParcelas.tableName, DbParcelas.declividade)) {
-            await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.declividade} REAL');
+          if (!await _columnExists(
+              db, DbParcelas.tableName, DbParcelas.declividade)) {
+            await db.execute(
+                'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.declividade} REAL');
           }
           break;
         case 49:
@@ -436,8 +542,29 @@ class DatabaseHelper {
           break;
         case 50:
           if (!await _columnExists(db, 'cubagens_arvores', 'secoes')) {
-            await db.execute('ALTER TABLE cubagens_arvores ADD COLUMN secoes TEXT');
+            await db
+                .execute('ALTER TABLE cubagens_arvores ADD COLUMN secoes TEXT');
           }
+          break;
+        case 51:
+          await db.execute('''
+            CREATE TABLE checklist_veicular (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              data_registro TEXT NOT NULL,
+              uid_usuario TEXT,
+              nome_motorista TEXT,
+              placa TEXT,
+              km_atual REAL,
+              modelo_veiculo TEXT,
+              prefixo TEXT,           
+              categoria_cnh TEXT,     
+              vencimento_cnh TEXT,    
+              is_motorista INTEGER NOT NULL,
+              itens_json TEXT,
+              observacoes TEXT,
+              lastModified TEXT NOT NULL
+            )
+          ''');
           break;
       }
     }

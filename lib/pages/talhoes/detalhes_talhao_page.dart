@@ -71,7 +71,6 @@ class _DetalhesTalhaoPageState extends State<DetalhesTalhaoPage> {
           _atividadeRepository.getAtividadeById(widget.atividadeId),
         ]);
         
-        // Define _coletasFuture dentro do .then() para garantir que 'atividade' não seja nulo
         _pageDataFuture.then((data) {
           if (mounted) {
             final Atividade? atividade = data.length > 1 ? data[1] as Atividade? : null;
@@ -79,7 +78,12 @@ class _DetalhesTalhaoPageState extends State<DetalhesTalhaoPage> {
               if (_isAtividadeDeInventario(atividade)) {
                 _coletasFuture = _parcelaRepository.getParcelasDoTalhao(widget.talhaoId);
               } else {
-                _coletasFuture = _cubagemRepository.getTodasCubagensDoTalhao(widget.talhaoId);
+                // CORREÇÃO: Garante que as cubagens venham ordenadas
+                _coletasFuture = _cubagemRepository.getTodasCubagensDoTalhao(widget.talhaoId).then((lista) {
+                  // Ordena por Identificador (alfabético/numérico) para manter consistência
+                  lista.sort((a, b) => a.identificador.compareTo(b.identificador));
+                  return lista;
+                });
               }
             });
           }

@@ -71,8 +71,7 @@ class ConsistenciaResultadoPage extends StatelessWidget {
                               // 4. Navega passando o ID da árvore alvo para o Pulo Direto
                               Navigator.push(context, MaterialPageRoute(
                                 builder: (_) => InventarioPage(
-                                  parcela: parcela,
-                                  targetArvoreId: issue.arvoreId, // <--- AQUI A MÁGICA ACONTECE
+                                  parcela: parcela,                                  
                                 )
                               ));
                             }

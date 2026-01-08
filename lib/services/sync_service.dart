@@ -538,41 +538,88 @@ class SyncService {
   
   Future<void> _downloadParcelasDaNuvem(String licenseId, List<int> talhaoIds) async {
     if (talhaoIds.isEmpty) return;
+    
     for (var chunk in talhaoIds.slices(10)) {
         final querySnapshot = await _firestore.collection('clientes').doc(licenseId).collection('dados_coleta').where('talhaoId', whereIn: chunk).get();
         if (querySnapshot.docs.isEmpty) continue;
         
         final db = await _dbHelper.database;
+        
         for (final docSnapshot in querySnapshot.docs) {
           final dadosDaNuvem = docSnapshot.data();
           final parcelaDaNuvem = Parcela.fromMap(dadosDaNuvem);
           
           await db.transaction((txn) async {
             try {
+              // 1. Verifica conflitos locais
               final parcelaLocalResult = await txn.query('parcelas', where: 'uuid = ?', whereArgs: [parcelaDaNuvem.uuid], limit: 1);
 
               if (parcelaLocalResult.isNotEmpty && parcelaLocalResult.first['isSynced'] == 0) {
-                // Aqui podemos adicionar uma lógica similar: se nuvem é "concluída" e local é "pendente", baixa.
                 final statusLocal = parcelaLocalResult.first['status']?.toString().toLowerCase();
                 final statusNuvem = parcelaDaNuvem.status.name.toLowerCase();
                 
-                if (statusLocal != 'concluida' && statusNuvem == 'concluida') {
-                   // Permite o download para atualizar
-                } else {
+                // Só sobrescreve se a nuvem estiver concluída e o local não
+                if (!(statusLocal != 'concluida' && statusNuvem == 'concluida')) {
                    debugPrint("PULANDO DOWNLOAD da parcela ${parcelaDaNuvem.idParcela} pois existem alterações locais não sincronizadas.");
                    return;
                 }
               }
               
+              // 2. Prepara e Salva a Parcela (Cabeçalho)
               final pMap = parcelaDaNuvem.toMap();
-              pMap['isSynced'] = 1;
+              
+              // Converte a lista de árvores para JSON String para salvar na coluna 'arvores' da tabela 'parcelas'
+              if (dadosDaNuvem['arvores'] != null) {
+                 // Se já vier como String, mantém. Se vier como List (do Firebase), codifica.
+                 if (dadosDaNuvem['arvores'] is List) {
+                    pMap['arvores'] = jsonEncode(dadosDaNuvem['arvores']); 
+                 } else {
+                    pMap['arvores'] = dadosDaNuvem['arvores'];
+                 }
+              }
+
+              pMap['isSynced'] = 1; // Marca como sincronizado
+              
               await _upsert(txn, 'parcelas', pMap, 'uuid');
               
+              // 3. Recupera o ID Local da Parcela recém-salva/atualizada
               final idLocal = (await txn.query('parcelas', where: 'uuid = ?', whereArgs: [parcelaDaNuvem.uuid], limit: 1)).map((map) => Parcela.fromMap(map)).first.dbId!;
               
-              await txn.delete('arvores', where: 'parcelaId = ?', whereArgs: [idLocal]);
-              
-              await _sincronizarArvores(txn, docSnapshot, idLocal);
+              // 4. DESEMPACOTAMENTO: Salva as árvores na tabela relacional 'arvores'
+              if (dadosDaNuvem['arvores'] != null) {
+                // O Firebase retorna List<dynamic>, garantimos que seja tratado como lista
+                var listaArvoresNuvem = dadosDaNuvem['arvores'];
+                
+                // Se por acaso vier como String JSON (raro vindo do firestore direto, mas possível), decodifica
+                if (listaArvoresNuvem is String) {
+                   try {
+                     listaArvoresNuvem = jsonDecode(listaArvoresNuvem);
+                   } catch (_) {
+                     listaArvoresNuvem = [];
+                   }
+                }
+
+                if (listaArvoresNuvem is List && listaArvoresNuvem.isNotEmpty) {
+                  // Limpa as árvores antigas dessa parcela para evitar duplicação
+                  await txn.delete('arvores', where: 'parcelaId = ?', whereArgs: [idLocal]);
+
+                  // Insere as árvores uma por uma
+                  for (var item in listaArvoresNuvem) {
+                    // item é um Map<String, dynamic> vindo do JSON/Firestore
+                    if (item is Map<String, dynamic>) {
+                        final arvoreObj = Arvore.fromMap(item);
+                        final arvoreDbMap = arvoreObj.toMap();
+                        
+                        // Vincula ao ID Local da Parcela
+                        arvoreDbMap['parcelaId'] = idLocal; 
+                        arvoreDbMap.remove('id'); // Remove ID antigo para o banco gerar um novo sequencial
+                        arvoreDbMap['lastModified'] = DateTime.now().toIso8601String(); // Atualiza data local
+                        
+                        await txn.insert('arvores', arvoreDbMap);
+                    }
+                  }
+                }
+              }
 
             } catch (e, s) {
               debugPrint("Erro CRÍTICO ao sincronizar parcela ${parcelaDaNuvem.uuid}: $e\n$s");
@@ -581,43 +628,84 @@ class SyncService {
         }
     }
   }
-  
-  Future<void> _sincronizarArvores(DatabaseExecutor txn, firestore.DocumentSnapshot docSnapshot, int idParcelaLocal) async {
-      final arvoresSnapshot = await docSnapshot.reference.collection('arvores').get();
-      if (arvoresSnapshot.docs.isNotEmpty) {
-        for (final doc in arvoresSnapshot.docs) {
-          final arvore = Arvore.fromMap(doc.data());
-          final aMap = arvore.toMap();
-          aMap['parcelaId'] = idParcelaLocal;
-          await txn.insert('arvores', aMap, conflictAlgorithm: ConflictAlgorithm.replace);
-        }
-      }
-  }
-  
+   
   Future<void> _downloadCubagensDaNuvem(String licenseId, List<int> talhaoIds) async {
     if (talhaoIds.isEmpty) return;
+    
     for (var chunk in talhaoIds.slices(10)) {
       final querySnapshot = await _firestore.collection('clientes').doc(licenseId).collection('dados_cubagem').where('talhaoId', whereIn: chunk).get();
       if (querySnapshot.docs.isEmpty) continue;
       
       final db = await _dbHelper.database;
+      
       for (final docSnapshot in querySnapshot.docs) {
         final dadosDaNuvem = docSnapshot.data();
         final cubagemDaNuvem = CubagemArvore.fromMap(dadosDaNuvem);
+        
         await db.transaction((txn) async {
           try {
+            // 1. Prepara o mapa da Cubagem (Pai)
             final cMap = cubagemDaNuvem.toMap();
+            
+            // Garante que o campo 'secoes' seja salvo como JSON string na tabela pai (backup local)
+            if (dadosDaNuvem['secoes'] != null) {
+               if (dadosDaNuvem['secoes'] is List) {
+                  cMap['secoes'] = jsonEncode(dadosDaNuvem['secoes']);
+               } else {
+                  cMap['secoes'] = dadosDaNuvem['secoes'];
+               }
+            }
+
             cMap['isSynced'] = 1;
+            
+            // 2. Salva a Cubagem
             await _upsert(txn, 'cubagens_arvores', cMap, 'id');
+            
+            // 3. Limpa seções antigas para evitar duplicidade
             await txn.delete('cubagens_secoes', where: 'cubagemArvoreId = ?', whereArgs: [cubagemDaNuvem.id]);
-            final secoesSnapshot = await docSnapshot.reference.collection('secoes').get();
-            if (secoesSnapshot.docs.isNotEmpty) {
-              for (final doc in secoesSnapshot.docs) {
-                final secao = CubagemSecao.fromMap(doc.data());
-                secao.cubagemArvoreId = cubagemDaNuvem.id; 
-                await txn.insert('cubagens_secoes', secao.toMap(), conflictAlgorithm: ConflictAlgorithm.replace);
+
+            // 4. DESEMPACOTAMENTO: Tenta pegar as seções do JSON interno (Prioridade Nova)
+            bool secoesInseridasViaJson = false;
+            
+            if (dadosDaNuvem['secoes'] != null) {
+               var listaSecoesNuvem = dadosDaNuvem['secoes'];
+               
+               if (listaSecoesNuvem is String) {
+                 try { listaSecoesNuvem = jsonDecode(listaSecoesNuvem); } catch(_) { listaSecoesNuvem = []; }
+               }
+
+               if (listaSecoesNuvem is List && listaSecoesNuvem.isNotEmpty) {
+                 for (var secMap in listaSecoesNuvem) {
+                    if (secMap is Map<String, dynamic>) {
+                      final secaoObj = CubagemSecao.fromMap(secMap);
+                      final secaoDbMap = secaoObj.toMap();
+                      
+                      secaoDbMap['cubagemArvoreId'] = cubagemDaNuvem.id; // Vincula ao ID da cubagem
+                      secaoDbMap.remove('id'); // Remove ID antigo para gerar novo
+                      secaoDbMap['lastModified'] = DateTime.now().toIso8601String();
+                      
+                      await txn.insert('cubagens_secoes', secaoDbMap);
+                    }
+                 }
+                 secoesInseridasViaJson = true;
+               }
+            }
+
+            // 5. FALLBACK: Se não veio JSON, tenta buscar na subcoleção (Compatibilidade Antiga)
+            if (!secoesInseridasViaJson) {
+              final secoesSnapshot = await docSnapshot.reference.collection('secoes').get();
+              if (secoesSnapshot.docs.isNotEmpty) {
+                for (final doc in secoesSnapshot.docs) {
+                  final secao = CubagemSecao.fromMap(doc.data());
+                  final secaoDbMap = secao.toMap();
+                  secaoDbMap['cubagemArvoreId'] = cubagemDaNuvem.id;
+                  // Não removemos o ID aqui pois na subcoleção antiga o ID poderia ser relevante, 
+                  // mas o 'conflictAlgorithm: replace' lida com isso.
+                  await txn.insert('cubagens_secoes', secaoDbMap, conflictAlgorithm: ConflictAlgorithm.replace);
+                }
               }
             }
+            
           } catch (e, s) {
             debugPrint("Erro CRÍTICO ao sincronizar cubagem ${cubagemDaNuvem.id}: $e\n$s");
           }

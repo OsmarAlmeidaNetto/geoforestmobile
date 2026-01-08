@@ -1,4 +1,4 @@
-// lib/pages/amostra/inventario_page.dart (VERSÃO COM SUPORTE A PULO DE ERRO IA)
+// Arquivo: lib/pages/amostra/inventario_page.dart
 
 import 'package:flutter/material.dart';
 import 'package:geoforestv1/models/arvore_model.dart';
@@ -8,13 +8,11 @@ import 'package:geoforestv1/widgets/arvore_dialog.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:geoforestv1/pages/dashboard/dashboard_page.dart';
 import 'package:geoforestv1/data/repositories/parcela_repository.dart';
-import 'package:collection/collection.dart'; // Import necessário para firstWhereOrNull
 
 class InventarioPage extends StatefulWidget {
   final Parcela parcela;
-  final int? targetArvoreId; // <--- NOVO: ID alvo para o pulo direto
 
-  const InventarioPage({super.key, required this.parcela, this.targetArvoreId});
+  const InventarioPage({super.key, required this.parcela});
 
   @override
   State<InventarioPage> createState() => _InventarioPageState();
@@ -35,27 +33,12 @@ class _InventarioPageState extends State<InventarioPage> {
   
   bool _isReadOnly = false;
 
-   @override
+  @override
   void initState() {
     super.initState();
     _parcelaAtual = widget.parcela;
     _arvoresColetadas = widget.parcela.arvores; 
     _dataLoadingFuture = _configurarStatusDaTela();
-
-    // --- LÓGICA DO PULO DIRETO ---
-    if (widget.targetArvoreId != null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        // Busca a árvore na lista pelo ID que veio da Auditoria
-        final arvoreAlvo = _arvoresColetadas.firstWhereOrNull(
-          (a) => a.id == widget.targetArvoreId
-        );
-
-        // Se encontrar e não estiver em modo leitura, abre o formulário
-        if (arvoreAlvo != null && !_isReadOnly) {
-          _abrirFormularioParaEditar(arvoreAlvo);
-        }
-      });
-    }
   }
 
   Future<bool> _configurarStatusDaTela() async {
@@ -71,7 +54,6 @@ class _InventarioPageState extends State<InventarioPage> {
     return true;
   }
 
-  
   Future<void> _reabrirParaEdicao() async {
     setState(() => _isSaving = true);
     try {
@@ -95,11 +77,69 @@ class _InventarioPageState extends State<InventarioPage> {
   }
 
   Future<void> _concluirColeta() async {
+    // 1. IDENTIFICAR PROBLEMAS
+    
+    // A. Verifica Dominantes sem Altura Total
+    final dominantesSemAltura = _arvoresColetadas.where((a) => 
+      a.dominante && (a.altura == null || a.altura! <= 0)
+    ).toList();
+
+    // B. Verifica Quebradas sem Altura do Dano
+    final quebradasSemAltura = _arvoresColetadas.where((a) => 
+      a.codigo == Codigo.Quebrada && (a.alturaDano == null || a.alturaDano! <= 0)
+    ).toList();
+
+    // 2. SE HOUVER ALGUM PROBLEMA, EXIBIR ALERTA
+    if (dominantesSemAltura.isNotEmpty || quebradasSemAltura.isNotEmpty) {
+      
+      // Monta a mensagem dinamicamente
+      final StringBuffer mensagem = StringBuffer();
+      mensagem.writeln("Foram encontrados dados pendentes:\n");
+
+      if (dominantesSemAltura.isNotEmpty) {
+        final listaDom = dominantesSemAltura.map((a) => "L:${a.linha}/A:${a.posicaoNaLinha}").join(", ");
+        mensagem.writeln("• ${dominantesSemAltura.length} Árvore(s) Dominante(s) sem Altura Total.");
+        mensagem.writeln("  ($listaDom)\n");
+      }
+
+      if (quebradasSemAltura.isNotEmpty) {
+        final listaQueb = quebradasSemAltura.map((a) => "L:${a.linha}/A:${a.posicaoNaLinha}").join(", ");
+        mensagem.writeln("• ${quebradasSemAltura.length} Árvore(s) Quebrada(s) sem Altura do Dano.");
+        mensagem.writeln("  ($listaQueb)\n");
+      }
+
+      mensagem.write("Deseja concluir mesmo com esses dados faltando?");
+
+      // Exibe o diálogo
+      final continuarMesmoAssim = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text("Atenção: Dados Faltantes"),
+          content: SingleChildScrollView(child: Text(mensagem.toString())), // SingleChildScrollView caso a lista seja grande
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false), // Retorna false (Corrigir)
+              child: const Text("Corrigir"),
+            ),
+            // Se você quiser BLOQUEAR totalmente, remova este botão abaixo:
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true), // Retorna true (Ignorar)
+              child: const Text("Ignorar e Concluir", style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      );
+
+      // Se o usuário clicou em "Corrigir" ou fora do diálogo, para a execução aqui.
+      if (continuarMesmoAssim != true) return;
+    }
+
+    // 3. CONFIRMAÇÃO FINAL (FLUXO PADRÃO)
     final confirm = await showDialog<bool>(
       context: context, 
       builder: (context) => AlertDialog(
         title: const Text('Concluir Coleta'),
-        content: const Text('Tem certeza que deseja marcar esta parcela como concluída? As árvores dominantes serão selecionadas automaticamente.'),
+        content: const Text('Tem certeza que deseja marcar esta parcela como concluída?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Concluir'))
@@ -109,6 +149,7 @@ class _InventarioPageState extends State<InventarioPage> {
 
     if (!confirm || !mounted) return;
     
+    // Salva marcando como concluída
     await _salvarEstadoAtual(concluir: true, showSnackbar: false);
     
     if (mounted) {
@@ -204,6 +245,8 @@ class _InventarioPageState extends State<InventarioPage> {
 
   Future<void> _processarResultadoDialogo(DialogResult result, {int? indexOriginal}) async {
     final validationResult = _validationService.validateSingleTree(result.arvore);
+    
+    // --- 1. VALIDAÇÃO DE DADOS ---
     if (!validationResult.isValid) {
       final querSalvarMesmoAssim = await showDialog<bool>(
         context: context,
@@ -229,16 +272,29 @@ class _InventarioPageState extends State<InventarioPage> {
       }
     }
 
+    // --- 2. ATUALIZAÇÃO DA LISTA E ORDENAÇÃO ---
     setState(() {
       if (indexOriginal != null) {
         _arvoresColetadas[indexOriginal] = result.arvore;
       } else {
         _arvoresColetadas.add(result.arvore);
       }
+
+      // CORREÇÃO: Reordena a lista imediatamente para manter a consistência visual
+      _arvoresColetadas.sort((a, b) {
+        int compLinha = a.linha.compareTo(b.linha);
+        if (compLinha != 0) return compLinha;
+        int compPos = a.posicaoNaLinha.compareTo(b.posicaoNaLinha);
+        if (compPos != 0) return compPos;
+        // Fallback: mantém ordem de inserção/ID se Linha e Posição forem iguais
+        return (a.id ?? 0).compareTo(b.id ?? 0);
+      });
     });
 
+    // --- 3. SALVAMENTO ---
     await _salvarEstadoAtual(showSnackbar: !(result.irParaProxima || result.continuarNaMesmaPosicao || result.atualizarEProximo || result.atualizarEAnterior));
 
+    // --- 4. NAVEGAÇÃO E REABERTURA DE DIÁLOGO ---
     if (result.irParaProxima) {
       Future.delayed(const Duration(milliseconds: 50), () => _adicionarNovaArvore());
     } 
@@ -256,10 +312,12 @@ class _InventarioPageState extends State<InventarioPage> {
       ));
     } 
     else if (result.atualizarEProximo && indexOriginal != null) {
+      // Recalcula lista de navegação (considerando filtro de dominantes)
       final List<Arvore> listaDeNavegacao = _mostrandoApenasDominantes
           ? _arvoresColetadas.where((a) => a.dominante).toList()
           : _arvoresColetadas;
 
+      // Garante a ordenação da lista de navegação também
       listaDeNavegacao.sort((a, b) {
         int compLinha = a.linha.compareTo(b.linha);
         if (compLinha != 0) return compLinha;
@@ -268,7 +326,8 @@ class _InventarioPageState extends State<InventarioPage> {
         return (a.id ?? 0).compareTo(b.id ?? 0);
       });
 
-      final int novoIndex = listaDeNavegacao.indexWhere((arvore) => arvore.id == result.arvore.id);
+      // CORREÇÃO: Usa indexOf para achar a posição exata do objeto atual na lista ordenada
+      final int novoIndex = listaDeNavegacao.indexOf(result.arvore);
       
       if (novoIndex != -1 && novoIndex + 1 < listaDeNavegacao.length) {
         Future.delayed(const Duration(milliseconds: 100), () => _abrirFormularioParaEditar(listaDeNavegacao[novoIndex + 1]));
@@ -287,7 +346,7 @@ class _InventarioPageState extends State<InventarioPage> {
         return (a.id ?? 0).compareTo(b.id ?? 0);
       });
 
-      final int novoIndex = listaDeNavegacao.indexWhere((arvore) => arvore.id == result.arvore.id);
+      final int novoIndex = listaDeNavegacao.indexOf(result.arvore);
       
       if (novoIndex > 0) {
         Future.delayed(const Duration(milliseconds: 100), () => _abrirFormularioParaEditar(listaDeNavegacao[novoIndex - 1]));
@@ -341,7 +400,10 @@ class _InventarioPageState extends State<InventarioPage> {
   }
 
   Future<void> _abrirFormularioParaEditar(Arvore arvore) async {
-    final int indexOriginal = _arvoresColetadas.indexWhere((a) => a.id == arvore.id);
+    // CORREÇÃO: Usamos indexOf em vez de indexWhere com ID. 
+    // Isso garante que pegamos exatamente a árvore clicada, mesmo que ela não tenha ID ainda.
+    final int indexOriginal = _arvoresColetadas.indexOf(arvore);
+    
     if (indexOriginal == -1) return;
 
     final result = await showDialog<DialogResult>(
@@ -399,16 +461,8 @@ class _InventarioPageState extends State<InventarioPage> {
           title: const Text('Coleta da Parcela'),
           actions: _isReadOnly 
             ? [
-                IconButton(
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'Reabrir para Edição',
-                  onPressed: _reabrirParaEdicao,
-                ),
-                IconButton(
-                  icon: const Icon(Icons.bar_chart),
-                  tooltip: 'Ver Relatório da Parcela',
-                  onPressed: _arvoresColetadas.isEmpty ? null : _navegarParaDashboard,
-                ),
+                IconButton(icon: const Icon(Icons.edit_outlined), tooltip: 'Reabrir para Edição', onPressed: _reabrirParaEdicao),
+                IconButton(icon: const Icon(Icons.bar_chart), tooltip: 'Ver Relatório da Parcela', onPressed: _arvoresColetadas.isEmpty ? null : _navegarParaDashboard),
               ]
             : [
                 if (_isSaving)
@@ -489,8 +543,29 @@ class _InventarioPageState extends State<InventarioPage> {
                           itemBuilder: (context, index) {
                             final arvore = listaExibida[index];
                             
-                            // --- LÓGICA DE DESTAQUE DO ERRO ---
-                            final bool isTarget = arvore.id == widget.targetArvoreId;
+                            // --- LÓGICA DE CORES ATUALIZADA ---
+                            final bool isQuebrada = arvore.codigo == Codigo.Quebrada; 
+                            
+                            Color backgroundColor;
+                            if (isQuebrada) {
+                              backgroundColor = Colors.red.shade50;
+                            } else if (arvore.dominante) {
+                              backgroundColor = Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4);
+                            } else if (index.isOdd) {
+                              backgroundColor = Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3);
+                            } else {
+                              backgroundColor = Colors.transparent;
+                            }
+
+                            Color borderColor;
+                            double borderWidth;
+                            if (isQuebrada) {
+                              borderColor = Colors.red.shade200;
+                              borderWidth = 1.2;
+                            } else {
+                              borderColor = Theme.of(context).dividerColor;
+                              borderWidth = 0.8;
+                            }
 
                             return Slidable(
                               key: ValueKey(arvore.id ?? arvore.hashCode),
@@ -512,13 +587,8 @@ class _InventarioPageState extends State<InventarioPage> {
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 16.0),
                                   decoration: BoxDecoration(
-                                    // A cor muda para vermelho claro se for o alvo do erro
-                                    color: isTarget 
-                                        ? Colors.red.shade100 
-                                        : arvore.dominante 
-                                            ? Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4) 
-                                            : (index.isOdd ? Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3) : Colors.transparent),
-                                    border: Border(bottom: BorderSide(color: isTarget ? Colors.red : Theme.of(context).dividerColor, width: isTarget ? 1.5 : 0.8)),
+                                    color: backgroundColor,
+                                    border: Border(bottom: BorderSide(color: borderColor, width: borderWidth)),
                                   ),
                                   child: Row(
                                     children: [
