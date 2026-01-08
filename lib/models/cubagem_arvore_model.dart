@@ -1,7 +1,9 @@
-// lib/models/cubagem_arvore_model.dart (VERSÃO CORRIGIDA E ROBUSTA)
+// lib/models/cubagem_arvore_model.dart
 
+import 'dart:convert'; // <--- NOVO: Necessário para o jsonEncode
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geoforestv1/data/datasources/local/database_constants.dart';
+import 'package:geoforestv1/models/cubagem_secao_model.dart'; // <--- NOVO: Importar o modelo de seção
 
 class CubagemArvore {
   int? id;
@@ -25,14 +27,33 @@ class CubagemArvore {
   final String? rf;
   final DateTime? dataColeta;
   final DateTime? lastModified;
+  
+  // 1. ADICIONAR A LISTA DE SEÇÕES AQUI
+  List<CubagemSecao> secoes; // <--- NOVO
 
   CubagemArvore({
-    this.id, this.talhaoId, this.idFazenda, required this.nomeFazenda,
-    required this.nomeTalhao, required this.identificador, this.classe,
-    this.exportada = false, this.isSynced = false, this.nomeLider,
-    this.alturaTotal = 0, this.tipoMedidaCAP = 'fita', this.valorCAP = 0,
-    this.alturaBase = 0, this.observacao, this.latitude, this.longitude,
-    this.metodoCubagem, this.rf, this.dataColeta, this.lastModified,
+    this.id,
+    this.talhaoId,
+    this.idFazenda,
+    required this.nomeFazenda,
+    required this.nomeTalhao,
+    required this.identificador,
+    this.classe,
+    this.exportada = false,
+    this.isSynced = false,
+    this.nomeLider,
+    this.alturaTotal = 0,
+    this.tipoMedidaCAP = 'fita',
+    this.valorCAP = 0,
+    this.alturaBase = 0,
+    this.observacao,
+    this.latitude,
+    this.longitude,
+    this.metodoCubagem,
+    this.rf,
+    this.dataColeta,
+    this.lastModified,
+    this.secoes = const [], // <--- NOVO: Inicializar como lista vazia
   });
 
   CubagemArvore copyWith({
@@ -41,19 +62,31 @@ class CubagemArvore {
     String? nomeLider, double? alturaTotal, String? tipoMedidaCAP, double? valorCAP,
     double? alturaBase, String? observacao, double? latitude, double? longitude,
     String? metodoCubagem, String? rf, DateTime? dataColeta, DateTime? lastModified,
+    List<CubagemSecao>? secoes, // <--- NOVO
   }) {
     return CubagemArvore(
-      id: id ?? this.id, talhaoId: talhaoId ?? this.talhaoId,
-      idFazenda: idFazenda ?? this.idFazenda, nomeFazenda: nomeFazenda ?? this.nomeFazenda,
-      nomeTalhao: nomeTalhao ?? this.nomeTalhao, identificador: identificador ?? this.identificador,
-      classe: classe ?? this.classe, exportada: exportada ?? this.exportada,
-      isSynced: isSynced ?? this.isSynced, nomeLider: nomeLider ?? this.nomeLider,
-      alturaTotal: alturaTotal ?? this.alturaTotal, tipoMedidaCAP: tipoMedidaCAP ?? this.tipoMedidaCAP,
-      valorCAP: valorCAP ?? this.valorCAP, alturaBase: alturaBase ?? this.alturaBase,
-      observacao: observacao ?? this.observacao, latitude: latitude ?? this.latitude,
-      longitude: longitude ?? this.longitude, metodoCubagem: metodoCubagem ?? this.metodoCubagem,
-      rf: rf ?? this.rf, dataColeta: dataColeta ?? this.dataColeta,
+      id: id ?? this.id,
+      talhaoId: talhaoId ?? this.talhaoId,
+      idFazenda: idFazenda ?? this.idFazenda,
+      nomeFazenda: nomeFazenda ?? this.nomeFazenda,
+      nomeTalhao: nomeTalhao ?? this.nomeTalhao,
+      identificador: identificador ?? this.identificador,
+      classe: classe ?? this.classe,
+      exportada: exportada ?? this.exportada,
+      isSynced: isSynced ?? this.isSynced,
+      nomeLider: nomeLider ?? this.nomeLider,
+      alturaTotal: alturaTotal ?? this.alturaTotal,
+      tipoMedidaCAP: tipoMedidaCAP ?? this.tipoMedidaCAP,
+      valorCAP: valorCAP ?? this.valorCAP,
+      alturaBase: alturaBase ?? this.alturaBase,
+      observacao: observacao ?? this.observacao,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      metodoCubagem: metodoCubagem ?? this.metodoCubagem,
+      rf: rf ?? this.rf,
+      dataColeta: dataColeta ?? this.dataColeta,
       lastModified: lastModified ?? this.lastModified,
+      secoes: secoes ?? this.secoes, // <--- NOVO
     );
   }
 
@@ -74,14 +107,15 @@ class CubagemArvore {
       DbCubagensArvores.latitude: latitude,
       DbCubagensArvores.longitude: longitude,
       DbCubagensArvores.metodoCubagem: metodoCubagem,
-      DbCubagensArvores.rf: rf,
-      
-      // >>> CORREÇÃO 1: Se tem altura (foi medida) mas não tem data, insere AGORA <<<
-      DbCubagensArvores.dataColeta: dataColeta?.toIso8601String() ?? (alturaTotal > 0 ? DateTime.now().toIso8601String() : null),
-      
+      DbCubagensArvores.rf: rf,      
+      DbCubagensArvores.dataColeta: dataColeta?.toIso8601String() ?? (alturaTotal > 0 ? DateTime.now().toIso8601String() : null),      
       DbCubagensArvores.exportada: exportada ? 1 : 0,
       DbCubagensArvores.isSynced: isSynced ? 1 : 0,
       DbCubagensArvores.nomeLider: nomeLider,
+      
+      // 2. EMPACOTAR AS SEÇÕES COMO JSON AQUI
+      'secoes': jsonEncode(secoes.map((s) => s.toMap()).toList()), // <--- NOVO
+      
       DbCubagensArvores.lastModified: lastModified?.toIso8601String(),
     };
   }
@@ -91,6 +125,21 @@ class CubagemArvore {
       if (value is Timestamp) return value.toDate();
       if (value is String) return DateTime.tryParse(value);
       return null;
+    }
+
+    // 3. LÓGICA PARA LER O "PACOTE" DE SEÇÕES (Resiliente)
+    List<CubagemSecao> listaSecoes = []; // <--- NOVO
+    if (map['secoes'] != null) { // <--- NOVO
+      try {
+        var raw = map['secoes'];
+        // Se for String (SQLite), faz o decode. Se for List (Firebase), usa direto.
+        var decoded = raw is String ? jsonDecode(raw) : raw;
+        if (decoded is List) {
+          listaSecoes = decoded.map((s) => CubagemSecao.fromMap(Map<String, dynamic>.from(s))).toList();
+        }
+      } catch (e) {
+        print("Erro ao decodificar secoes: $e");
+      }
     }
 
     return CubagemArvore(
@@ -111,7 +160,6 @@ class CubagemArvore {
       isSynced: map[DbCubagensArvores.isSynced] == 1,
       nomeLider: map[DbCubagensArvores.nomeLider],
       
-      // >>> CORREÇÃO 2: Robustez na leitura de números (String ou Num) <<<
       alturaTotal: (map[DbCubagensArvores.alturaTotal] is String)
           ? double.tryParse(map[DbCubagensArvores.alturaTotal].toString().replaceAll(',', '.')) ?? 0.0
           : (map[DbCubagensArvores.alturaTotal] as num?)?.toDouble() ?? 0.0,
@@ -126,6 +174,7 @@ class CubagemArvore {
           ? double.tryParse(map[DbCubagensArvores.alturaBase].toString().replaceAll(',', '.')) ?? 0.0
           : (map[DbCubagensArvores.alturaBase] as num?)?.toDouble() ?? 0.0,
       
+      secoes: listaSecoes, // <--- NOVO: Atribuir a lista carregada
       lastModified: parseDate(map[DbCubagensArvores.lastModified]),
     );
   }

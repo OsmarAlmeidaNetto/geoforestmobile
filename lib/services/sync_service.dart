@@ -19,6 +19,8 @@ import 'package:geoforestv1/services/licensing_service.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:collection/collection.dart';
+import 'dart:convert'; // <--- ADICIONE ESTA LINHA
+
 
 import 'package:geoforestv1/data/repositories/parcela_repository.dart';
 import 'package:geoforestv1/data/repositories/cubagem_repository.dart';
@@ -398,21 +400,16 @@ class SyncService {
 }     
   
   Future<void> _uploadCubagem(firestore.DocumentReference docRef, CubagemArvore cubagem) async {
-      final firestoreBatch = _firestore.batch();
-      final cubagemMap = cubagem.toMap();
-      final prefs = await SharedPreferences.getInstance();
-      cubagemMap['nomeLider'] = cubagem.nomeLider ?? prefs.getString('nome_lider');
-      cubagemMap['lastModified'] = firestore.FieldValue.serverTimestamp();
-      firestoreBatch.set(docRef, cubagemMap, firestore.SetOptions(merge: true));
-      final secoes = await _cubagemRepository.getSecoesPorArvoreId(cubagem.id!);
-      for (final secao in secoes) {
-        final secaoMap = secao.toMap();
-        secaoMap['lastModified'] = firestore.FieldValue.serverTimestamp();
-        final secaoRef = docRef.collection('secoes').doc(secao.id.toString());
-        firestoreBatch.set(secaoRef, secaoMap);
-      }
-      await firestoreBatch.commit();
+  final map = cubagem.toMap();
+  
+  // Transformamos a String do SQLite em Lista para o Firebase entender como Array
+  if (map['secoes'] is String) {
+    map['secoes'] = jsonDecode(map['secoes']);
   }
+  
+  map['lastModified'] = firestore.FieldValue.serverTimestamp();
+  await docRef.set(map, firestore.SetOptions(merge: true));
+}
   
   Future<void> _upsert(DatabaseExecutor txn, String table, Map<String, dynamic> data, String primaryKey, {String? secondaryKey}) async {
       List<dynamic> whereArgs = [data[primaryKey]];

@@ -27,52 +27,61 @@ class CubagemRepository {
   }
 
   Future<void> salvarCubagemCompleta(
-      CubagemArvore arvore, List<CubagemSecao> secoes) async {
-    final db = await _dbHelper.database;
-    final now = DateTime.now();
-    final nowAsString = now.toIso8601String();
+    CubagemArvore arvore, List<CubagemSecao> secoes) async {
+  final db = await _dbHelper.database;
+  final now = DateTime.now();
+  final nowAsString = now.toIso8601String();
 
-    await db.transaction((txn) async {
-      int id;
+  await db.transaction((txn) async {
+    int id;
 
-      final arvoreParaSalvar = arvore.copyWith(
-        isSynced: false,
-        // Garante que a dataColeta seja salva. Se vier nula (não deveria), usa 'now'.
-        dataColeta: arvore.dataColeta ?? now,
-      );
-
-      final map = arvoreParaSalvar.toMap();
-      map[DbCubagensArvores.lastModified] = nowAsString;
-
-      final prefs = await SharedPreferences.getInstance();
-      String? nomeDoResponsavel = prefs.getString('nome_lider');
-      if (nomeDoResponsavel == null || nomeDoResponsavel.isEmpty) {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user != null) {
-          nomeDoResponsavel = user.displayName ?? user.email;
-        }
+    // 1. Identificar o líder (sua lógica original)
+    final prefs = await SharedPreferences.getInstance();
+    String? nomeDoResponsavel = prefs.getString('nome_lider');
+    if (nomeDoResponsavel == null || nomeDoResponsavel.isEmpty) {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        nomeDoResponsavel = user.displayName ?? user.email;
       }
-      if (nomeDoResponsavel != null) {
-        map[DbCubagensArvores.nomeLider] = nomeDoResponsavel;
-      }
+    }
 
-      if (arvoreParaSalvar.id == null) {
-        id = await txn.insert(DbCubagensArvores.tableName, map,
-            conflictAlgorithm: ConflictAlgorithm.replace);
-      } else {
-        id = arvoreParaSalvar.id!;
-        await txn.update(DbCubagensArvores.tableName, map,
-            where: '${DbCubagensArvores.id} = ?', whereArgs: [id]);
-      }
-      await txn.delete(DbCubagensSecoes.tableName, where: '${DbCubagensSecoes.cubagemArvoreId} = ?', whereArgs: [id]);
-      for (var s in secoes) {
-        s.cubagemArvoreId = id;
-        final secaoMap = s.toMap();
-        secaoMap[DbCubagensSecoes.lastModified] = nowAsString;
-        await txn.insert(DbCubagensSecoes.tableName, secaoMap);
-      }
-    });
-  }
+    // 2. O SEGREDO: Criar a árvore já com as seções anexadas
+    // Isso faz com que o toMap() inclua a String JSON das seções
+    final arvoreParaSalvar = arvore.copyWith(
+      isSynced: false,
+      dataColeta: arvore.dataColeta ?? now,
+      nomeLider: nomeDoResponsavel,
+      secoes: secoes, // <--- Aqui as seções entram no "pacote"
+    );
+
+    final map = arvoreParaSalvar.toMap();
+    map[DbCubagensArvores.lastModified] = nowAsString;
+
+    // 3. Salvar ou Atualizar o "Cabeçalho" (Tabela cubagens_arvores)
+    // Agora o campo 'secoes' (JSON) será gravado na tabela pai
+    if (arvoreParaSalvar.id == null) {
+      id = await txn.insert(DbCubagensArvores.tableName, map,
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    } else {
+      id = arvoreParaSalvar.id!;
+      await txn.update(DbCubagensArvores.tableName, map,
+          where: '${DbCubagensArvores.id} = ?', whereArgs: [id]);
+    }
+
+    // 4. Manter a Tabela de Seções (Para Gráficos e Relatórios Locais)
+    // Deletamos as antigas e inserimos as novas na tabela relacional
+    // Isso garante que sua tela de "Gráfico de Afilamento" continue rápida
+    await txn.delete(DbCubagensSecoes.tableName, 
+        where: '${DbCubagensSecoes.cubagemArvoreId} = ?', whereArgs: [id]);
+    
+    for (var s in secoes) {
+      s.cubagemArvoreId = id;
+      final secaoMap = s.toMap();
+      secaoMap[DbCubagensSecoes.lastModified] = nowAsString;
+      await txn.insert(DbCubagensSecoes.tableName, secaoMap);
+    }
+  });
+}
 
   Future<void> gerarPlanoDeCubagemNoBanco(Talhao talhao, int totalParaCubar,
       int novaAtividadeId, AnalysisService analysisService) async {

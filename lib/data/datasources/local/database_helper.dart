@@ -434,6 +434,11 @@ class DatabaseHelper {
             await db.execute('ALTER TABLE parcelas ADD COLUMN arvores TEXT');
           }
           break;
+        case 50:
+          if (!await _columnExists(db, 'cubagens_arvores', 'secoes')) {
+            await db.execute('ALTER TABLE cubagens_arvores ADD COLUMN secoes TEXT');
+          }
+          break;
       }
     }
   }
