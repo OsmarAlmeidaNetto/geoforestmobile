@@ -354,7 +354,14 @@ class _InventarioPageState extends State<InventarioPage> {
     }
   }
 
+  // >>> ATUALIZAÇÃO 1: PASSAR O FLAG BIO PARA O DIÁLOGO (NOVO) <<<
   Future<void> _adicionarNovaArvore({Arvore? arvoreInicial, bool isFusteAdicional = false}) async {
+    // Verifica se é BIO
+    bool isBio = false;
+    if (_parcelaAtual.atividadeTipo != null) {
+      isBio = _parcelaAtual.atividadeTipo!.toUpperCase().contains('BIO');
+    }
+
     _arvoresColetadas.sort((a, b) {
       int compLinha = a.linha.compareTo(b.linha);
       if (compLinha != 0) return compLinha;
@@ -391,6 +398,7 @@ class _InventarioPageState extends State<InventarioPage> {
         linhaAtual: arvoreInicial?.linha ?? proximaLinha,
         posicaoNaLinhaAtual: arvoreInicial?.posicaoNaLinha ?? proximaPosicao,
         isAdicionandoFuste: isFusteAdicional,
+        isBio: isBio, // <--- Passa o valor calculado aqui
       ),
     );
 
@@ -399,9 +407,14 @@ class _InventarioPageState extends State<InventarioPage> {
     }
   }
 
+  // >>> ATUALIZAÇÃO 2: PASSAR O FLAG BIO PARA O DIÁLOGO (EDIÇÃO) <<<
   Future<void> _abrirFormularioParaEditar(Arvore arvore) async {
-    // CORREÇÃO: Usamos indexOf em vez de indexWhere com ID. 
-    // Isso garante que pegamos exatamente a árvore clicada, mesmo que ela não tenha ID ainda.
+    // Verifica se é BIO
+    bool isBio = false;
+    if (_parcelaAtual.atividadeTipo != null) {
+      isBio = _parcelaAtual.atividadeTipo!.toUpperCase().contains('BIO');
+    }
+
     final int indexOriginal = _arvoresColetadas.indexOf(arvore);
     
     if (indexOriginal == -1) return;
@@ -413,6 +426,7 @@ class _InventarioPageState extends State<InventarioPage> {
         arvoreParaEditar: arvore,
         linhaAtual: arvore.linha,
         posicaoNaLinhaAtual: arvore.posicaoNaLinha,
+        isBio: isBio, // <--- Passa o valor calculado aqui
       ),
     );
 

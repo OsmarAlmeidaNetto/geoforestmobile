@@ -5,6 +5,8 @@ import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 import 'package:geoforestv1/data/datasources/local/database_constants.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'dart:convert';
 
 final Map<int, String> proj4Definitions = {
   31978:
@@ -38,7 +40,7 @@ class DatabaseHelper {
   Future<Database> _initDatabase() async {
     return await openDatabase(
       join(await getDatabasesPath(), 'geoforestv1.db'),
-      version: 51,
+      version: 54,
       onConfigure: _onConfigure,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -265,6 +267,32 @@ class DatabaseHelper {
         lastModified TEXT NOT NULL
       )
     ''');
+    await db.execute('''
+      CREATE TABLE especies (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome_cientifico TEXT NOT NULL,
+        nome_comum TEXT NOT NULL,
+        familia TEXT,
+        fator_forma REAL,
+        regiao TEXT
+      )
+    ''');
+
+    // 2. Adiciona a coluna especie em arvores (caso a tabela arvores já tenha sido criada acima sem ela)
+    // Se você já criou a tabela arvores lá em cima, verifique se ela tem a coluna 'especie'.
+    // Se não tiver, adicione o alter table aqui ou modifique o CREATE TABLE lá em cima.
+    // Para garantir:
+    try {
+       // Se a tabela arvores foi criada no topo do _onCreate sem a coluna, isso aqui resolve:
+       await db.execute('ALTER TABLE arvores ADD COLUMN especie TEXT');
+    } catch (_) {
+       // Se já tiver, ignora o erro
+    }
+
+    // 3. Popula a tabela
+    await _popularTabelaEspecies(db);
+    
+    // --- FIM DA ADIÇÃO ---
 
     await db.execute(
         'CREATE INDEX idx_arvores_parcelaId ON ${DbArvores.tableName}(${DbArvores.parcelaId})');
@@ -566,6 +594,35 @@ class DatabaseHelper {
             )
           ''');
           break;
+          case 54:
+            debugPrint(">>> INICIANDO MIGRAÇÃO V54 (ESPECIES) <<<");
+            
+            // 1. SEGURANÇA: Se a tabela já existir de uma tentativa anterior, apaga ela.
+            // Isso evita o erro "Table already exists"
+            await db.execute('DROP TABLE IF EXISTS especies');
+
+            // 2. Cria a tabela limpa
+            await db.execute('''
+              CREATE TABLE especies (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                nome_cientifico TEXT NOT NULL,
+                nome_comum TEXT NOT NULL,
+                familia TEXT,
+                fator_forma REAL,
+                regiao TEXT
+              )
+            ''');
+
+            // 3. Adiciona a coluna 'especie' na tabela de árvores (se não existir)
+            try {
+              await db.execute('ALTER TABLE arvores ADD COLUMN especie TEXT');
+            } catch (e) {
+              debugPrint("Aviso: Coluna especie já existia ou erro ao criar: $e");
+            }
+
+            // 4. Popula a tabela com o CSV
+            await _popularTabelaEspecies(db);
+            break;
       }
     }
   }
@@ -574,6 +631,39 @@ class DatabaseHelper {
     final result = await db.rawQuery('PRAGMA table_info($table)');
     return result.any((row) => row['name'] == column);
   }
+
+  Future<void> _popularTabelaEspecies(Database db) async {
+  try {
+    final String csvData = await rootBundle.loadString('assets/data/especies.csv');
+    final List<String> linhas = const LineSplitter().convert(csvData);
+    final batch = db.batch();
+    int count = 0;
+
+    // .skip(1) para pular o cabeçalho
+    for (String linha in linhas.skip(1)) {
+      if (linha.trim().isEmpty) continue;
+      
+      var colunas = linha.split(';'); // Atenção: Seu CSV deve usar ponto e vírgula
+      
+      if (colunas.length >= 3) {
+        batch.insert('especies', {
+          'nome_cientifico': colunas[0].trim(),
+          'nome_comum': colunas[1].trim(),
+          'familia': colunas[2].trim(),
+          // Se a coluna 3 (Fator) não existir ou falhar, usa 0.5
+          'fator_forma': colunas.length > 3 ? (double.tryParse(colunas[3].replaceAll(',', '.')) ?? 0.5) : 0.5,
+          // Se a coluna 4 (Região) não existir, usa 'Cerrado'
+          'regiao': colunas.length > 4 ? colunas[4].trim() : 'Cerrado'
+        });
+        count++;
+      }
+    }
+    await batch.commit(noResult: true);
+    debugPrint("Importação concluída: $count espécies adicionadas.");
+  } catch (e) {
+    debugPrint("ERRO CRÍTICO ao importar CSV de espécies: $e");
+  }
+}
 
   Future<void> deleteDatabaseFile() async {
     if (_database != null && _database!.isOpen) {

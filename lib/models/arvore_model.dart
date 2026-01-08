@@ -29,6 +29,7 @@ class Arvore {
   final Codigo codigo;
   final Codigo2? codigo2;
   final String? codigo3;
+  final String? especie;
   final int? tora;
   final double? capAuditoria;
   final double? alturaAuditoria;
@@ -38,14 +39,14 @@ class Arvore {
   Arvore({
     this.id, required this.cap, this.altura, this.alturaDano, required this.linha,
     required this.posicaoNaLinha, this.fimDeLinha = false, this.dominante = false,
-    required this.codigo, this.codigo2, this.codigo3, this.tora,
+    required this.codigo, this.codigo2, this.codigo3,this.especie, this.tora,
     this.capAuditoria, this.alturaAuditoria, this.volume, this.lastModified,
   });
 
   Arvore copyWith({
     int? id, double? cap, double? altura, double? alturaDano, int? linha,
     int? posicaoNaLinha, bool? fimDeLinha, bool? dominante, Codigo? codigo,
-    Codigo2? codigo2, String? codigo3, int? tora, double? capAuditoria,
+    Codigo2? codigo2, String? codigo3,String? especie,  int? tora, double? capAuditoria,
     double? alturaAuditoria, double? volume, DateTime? lastModified,
   }) {
     return Arvore(
@@ -54,7 +55,7 @@ class Arvore {
       posicaoNaLinha: posicaoNaLinha ?? this.posicaoNaLinha,
       fimDeLinha: fimDeLinha ?? this.fimDeLinha, dominante: dominante ?? this.dominante,
       codigo: codigo ?? this.codigo, codigo2: codigo2 ?? this.codigo2,
-      codigo3: codigo3 ?? this.codigo3, tora: tora ?? this.tora,
+      codigo3: codigo3 ?? this.codigo3,especie: especie ?? this.especie, tora: tora ?? this.tora,
       capAuditoria: capAuditoria ?? this.capAuditoria,
       alturaAuditoria: alturaAuditoria ?? this.alturaAuditoria,
       volume: volume ?? this.volume, lastModified: lastModified ?? this.lastModified,
@@ -74,6 +75,7 @@ class Arvore {
       DbArvores.codigo: codigo.name,
       DbArvores.codigo2: codigo2?.name,
       DbArvores.codigo3: codigo3,
+      'especie': especie,
       DbArvores.tora: tora,
       DbArvores.capAuditoria: capAuditoria,
       DbArvores.alturaAuditoria: alturaAuditoria,
@@ -102,6 +104,7 @@ class Arvore {
           ? Codigo2.values.firstWhereOrNull((e) => e.name.toLowerCase() == map[DbArvores.codigo2].toString().toLowerCase())
           : null,
       codigo3: map[DbArvores.codigo3],
+      especie: map['especie'],
       tora: map[DbArvores.tora],
       capAuditoria: (map[DbArvores.capAuditoria] as num?)?.toDouble(),
       alturaAuditoria: (map[DbArvores.alturaAuditoria] as num?)?.toDouble(),

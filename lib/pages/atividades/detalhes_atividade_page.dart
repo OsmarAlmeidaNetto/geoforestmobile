@@ -37,7 +37,13 @@ class _DetalhesAtividadePageState extends State<DetalhesAtividadePage> {
   bool _isAtividadeDeInventario(Atividade? atividade) {
     if (atividade == null) return false;
     final tipo = atividade.tipo.toUpperCase();
-    return tipo.contains("IPC") || tipo.contains("IFC") || tipo.contains("IFS") || tipo.contains("BIO") || tipo.contains("IFQ");
+    
+    // ADICIONAMOS "BIO" AQUI TAMBÉM
+    return tipo.contains("IPC") || 
+           tipo.contains("IFC") || 
+           tipo.contains("IFS") || 
+           tipo.contains("BIO") || // <--- CORREÇÃO
+           tipo.contains("IFQ");
   }
 
   bool _isAtividadeDeCubagem(Atividade? atividade) {

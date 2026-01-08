@@ -1,7 +1,9 @@
-// lib/widgets/arvore_dialog.dart (VERSÃO CORRIGIDA E VALIDADA)
+// lib/widgets/arvore_dialog.dart
 
 import 'package:flutter/material.dart';
 import 'package:geoforestv1/models/arvore_model.dart';
+import 'package:geoforestv1/models/especie_model.dart';
+import 'package:geoforestv1/data/repositories/especie_repository.dart';
 
 class DialogResult {
   final Arvore arvore;
@@ -24,6 +26,7 @@ class ArvoreDialog extends StatefulWidget {
   final int linhaAtual;
   final int posicaoNaLinhaAtual;
   final bool isAdicionandoFuste;
+  final bool isBio; // Recebe se é BIO
 
   const ArvoreDialog({
     super.key,
@@ -31,6 +34,7 @@ class ArvoreDialog extends StatefulWidget {
     required this.linhaAtual,
     required this.posicaoNaLinhaAtual,
     this.isAdicionandoFuste = false,
+    this.isBio = false, // Padrão é false
   });
 
   bool get isEditing => arvoreParaEditar != null && !isAdicionandoFuste;
@@ -41,11 +45,16 @@ class ArvoreDialog extends StatefulWidget {
 
 class _ArvoreDialogState extends State<ArvoreDialog> {
   final _formKey = GlobalKey<FormState>();
+  
+  // Controllers
   final _capController = TextEditingController();
   final _alturaController = TextEditingController();
   final _linhaController = TextEditingController();
   final _posicaoController = TextEditingController();
   final _alturaDanoController = TextEditingController();
+  final _especieController = TextEditingController();
+  
+  final _especieRepository = EspecieRepository();
 
   late Codigo _codigo;
   Codigo2? _codigo2;
@@ -58,7 +67,7 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
     Codigo.AtaqueMacaco, Codigo.Fogo, Codigo.PragasOuDoencas,
     Codigo.VespaMadeira, Codigo.MortaOuSeca, Codigo.PonteiraSeca,
     Codigo.Rebrota, Codigo.AtaqueFormiga, Codigo.Torta,
-    Codigo.FoxTail,Codigo.FeridaBase, Codigo.Resinado, Codigo.Outro
+    Codigo.FoxTail, Codigo.FeridaBase, Codigo.Resinado, Codigo.Outro
   ];
 
   @override
@@ -70,6 +79,10 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
       _capController.text = (arvore.cap > 0) ? arvore.cap.toString().replaceAll('.', ',') : '';
       _alturaController.text = arvore.altura?.toString().replaceAll('.', ',') ?? '';
       _alturaDanoController.text = arvore.alturaDano?.toString().replaceAll('.', ',') ?? '';
+      
+      // Carrega a espécie
+      _especieController.text = arvore.especie ?? '';
+
       _codigo = arvore.codigo;
       _codigo2 = arvore.codigo2;
       _fimDeLinha = arvore.fimDeLinha;
@@ -78,7 +91,7 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
     } else {
       _codigo = Codigo.Normal;
       _linhaController.text = widget.linhaAtual.toString();
-      _posicaoController.text = widget.posicaoNaLinhaAtual.toString();
+      _posicaoController.text = widget.posicaoNaLinhaAtual.toString();      
     }
 
     _checkMultiplaFlow();
@@ -98,6 +111,8 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
         _capController.text = '0';
         _alturaController.clear();
         _alturaDanoController.clear();
+        // Limpa espécie se não for edição
+        if (!widget.isEditing) _especieController.clear();
       } else {
         _camposHabilitados = true;
         if (_capController.text == '0') {
@@ -114,11 +129,33 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
     _linhaController.dispose();
     _posicaoController.dispose();
     _alturaDanoController.dispose();
+    _especieController.dispose();
     super.dispose();
   }
 
   void _submit({bool proxima = false, bool mesmoFuste = false, bool atualizarEProximo = false, bool atualizarEAnterior = false}) {
     if (_formKey.currentState!.validate()) {
+      
+      // --- VALIDAÇÃO EXTRA PARA BIO ---
+      if (widget.isBio && _camposHabilitados) {
+        if (_especieController.text.trim().isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Para atividade BIO, a Espécie é obrigatória.'),
+            backgroundColor: Colors.red,
+          ));
+          return;
+        }
+        // Validação de altura para BIO (se não tiver sido pega pelo validator do campo)
+        if (_alturaController.text.isEmpty) {
+           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Para atividade BIO, a Altura é obrigatória.'),
+            backgroundColor: Colors.red,
+          ));
+          return;
+        }
+      }
+      // --------------------------------
+
       final double cap = double.tryParse(_capController.text.replaceAll(',', '.')) ?? 0.0;
       final double? altura = _alturaController.text.isNotEmpty ? double.tryParse(_alturaController.text.replaceAll(',', '.')) : null;
       final double? alturaDano = _alturaDanoController.text.isNotEmpty ? double.tryParse(_alturaDanoController.text.replaceAll(',', '.')) : null;
@@ -130,10 +167,12 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
         cap: cap,
         altura: altura,
         alturaDano: alturaDano,
+        // SALVA A ESPÉCIE SE FOR BIO
+        especie: widget.isBio ? _especieController.text.trim() : null, 
         linha: linha,
         posicaoNaLinha: posicao,
         codigo: _codigo,
-        codigo2: _codigo == Codigo.Normal ? null : _codigo2, // ✅ Garante que o código 2 é nulo se o código 1 for Normal
+        codigo2: _codigo == Codigo.Normal ? null : _codigo2,
         fimDeLinha: _fimDeLinha,
         dominante: widget.arvoreParaEditar?.dominante ?? false,
         capAuditoria: widget.arvoreParaEditar?.capAuditoria,
@@ -154,7 +193,6 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final bool showAlturaDano = _codesRequiringAlturaDano.contains(_codigo);
-    // ✅ 1. Cria uma variável para verificar se o código é "Normal"
     final bool isCodigoNormal = _codigo == Codigo.Normal;
 
     return Dialog(
@@ -173,6 +211,11 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                 style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 textAlign: TextAlign.center,
               ),
+              if (widget.isBio)
+                Padding(
+                  padding: const EdgeInsets.only(top: 4.0),
+                  child: Text("Inventário BIO (Nativa)", textAlign: TextAlign.center, style: TextStyle(color: Colors.green[700], fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
               const SizedBox(height: 20),
               Form(
                 key: _formKey,
@@ -180,6 +223,7 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // --- LINHA E POSIÇÃO ---
                     Row(
                       children: [
                         Expanded(
@@ -206,6 +250,8 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                       ],
                     ),
                     const SizedBox(height: 16),
+                    
+                    // --- CÓDIGOS ---
                     DropdownButtonFormField<Codigo>(
                       value: _codigo,
                       decoration: const InputDecoration(labelText: 'Código 1'),
@@ -214,7 +260,6 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                         if (value != null) {
                           setState(() {
                             _codigo = value;
-                            // ✅ 2. Se o novo código for Normal, limpa o código 2
                             if (value == Codigo.Normal) {
                               _codigo2 = null;
                             }
@@ -226,11 +271,9 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<Codigo2?>(
-                      // ✅ 3. Garante que o valor exibido seja nulo se o código 1 for Normal
                       value: isCodigoNormal ? null : _codigo2,
                       decoration: InputDecoration(
                         labelText: 'Código 2 (Opcional)',
-                        // ✅ 4. Adiciona um feedback visual quando desabilitado
                         filled: isCodigoNormal,
                         fillColor: isCodigoNormal ? Colors.grey.shade200 : null,
                       ),
@@ -238,10 +281,61 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                         const DropdownMenuItem(value: null, child: Text('Nenhum')),
                         ...Codigo2.values.map((s) => DropdownMenuItem(value: s, child: Text(s.name))),
                       ],
-                      // ✅ 5. Desabilita o campo se o código 1 for Normal
                       onChanged: isCodigoNormal ? null : (value) => setState(() => _codigo2 = value),
                     ),
                     const SizedBox(height: 16),
+
+                    // --- [BIO] AUTOCOMPLETE DE ESPÉCIE ---
+                    // Esta parte estava faltando no seu código.
+                    if (widget.isBio && _camposHabilitados)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 16.0),
+                        child: LayoutBuilder(builder: (context, constraints) {
+                          return Autocomplete<Especie>(
+                            optionsBuilder: (TextEditingValue textEditingValue) async {
+                              if (textEditingValue.text.length < 2) {
+                                return const Iterable<Especie>.empty();
+                              }
+                              // Chama o repositório que busca no banco local
+                              return await _especieRepository.buscarPorNome(textEditingValue.text);
+                            },
+                            displayStringForOption: (Especie option) => option.nomeComum,
+                            onSelected: (Especie selection) {
+                              // Salva a seleção no controller
+                              _especieController.text = selection.nomeComum; 
+                            },
+                            fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
+                              // Mantém o texto sincronizado caso seja edição
+                              if (_especieController.text.isNotEmpty && controller.text.isEmpty) {
+                                controller.text = _especieController.text;
+                              }
+                              // Ouve mudanças manuais
+                              controller.addListener(() {
+                                _especieController.text = controller.text;
+                              });
+                              
+                              return TextFormField(
+                                controller: controller,
+                                focusNode: focusNode,
+                                onEditingComplete: onEditingComplete,
+                                decoration: const InputDecoration(
+                                  labelText: 'Espécie *',
+                                  border: OutlineInputBorder(),
+                                  prefixIcon: Icon(Icons.spa, color: Colors.green),
+                                  suffixIcon: Icon(Icons.search),
+                                  helperText: 'Digite para buscar na lista',
+                                ),
+                                validator: (v) {
+                                  if (widget.isBio && (v == null || v.isEmpty)) return 'Obrigatório';
+                                  return null;
+                                },
+                              );
+                            },
+                          );
+                        }),
+                      ),
+
+                    // --- CAP ---
                     TextFormField(
                       controller: _capController,
                       enabled: _camposHabilitados,
@@ -258,12 +352,28 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                       },
                     ),
                     const SizedBox(height: 16),
+
+                    // --- ALTURA (COM VALIDAÇÃO CONDICIONAL) ---
                     TextFormField(
                       controller: _alturaController,
                       enabled: _camposHabilitados,
-                      decoration: const InputDecoration(labelText: 'Altura Total (m) - Opcional'),
+                      // Muda o rótulo visualmente se for BIO
+                      decoration: InputDecoration(
+                        labelText: widget.isBio ? 'Altura Total (m) *' : 'Altura Total (m) - Opcional',
+                        border: const OutlineInputBorder(),
+                      ),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      validator: (value) {
+                        // Regra de validação para BIO
+                        if (widget.isBio && _camposHabilitados) {
+                          if (value == null || value.isEmpty) {
+                            return 'Altura é obrigatória em BIO';
+                          }
+                        }
+                        return null;
+                      },
                     ),
+
                     if (showAlturaDano)
                       Padding(
                         padding: const EdgeInsets.only(top: 16.0),
@@ -274,6 +384,7 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
                       ),
+
                     if (!widget.isEditing && !_isInMultiplaFlow)
                       Padding(
                         padding: const EdgeInsets.only(top: 8.0),
@@ -289,6 +400,7 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
               ),
               const SizedBox(height: 24),
               
+              // --- BOTÕES DE AÇÃO ---
               Wrap(
                 alignment: WrapAlignment.end,
                 spacing: 8.0,

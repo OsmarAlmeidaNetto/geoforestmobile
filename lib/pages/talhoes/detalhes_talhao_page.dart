@@ -49,9 +49,12 @@ class _DetalhesTalhaoPageState extends State<DetalhesTalhaoPage> {
   // Função auxiliar para verificar tipo de atividade
   bool _isAtividadeDeInventario(Atividade? atividade) {
     if (atividade == null) return false;
-    final tipo = atividade.tipo.toLowerCase();
+    final tipo = atividade.tipo.toLowerCase();    
+    // ADICIONAMOS "BIO" AQUI
     return tipo.contains("ipc") ||
         tipo.contains("ifc") ||
+        tipo.contains("ifs") ||
+        tipo.contains("bio") || // <--- AQUI ESTA A CORREÇÃO
         tipo.contains("inventário");
   }
 
