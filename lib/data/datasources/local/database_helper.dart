@@ -30,7 +30,7 @@ class DatabaseHelper {
   Future<Database> _initDatabase() async {
     return await openDatabase(
       join(await getDatabasesPath(), 'geoforestv1.db'),
-      version: 48,
+      version: 49,
       onConfigure: _onConfigure,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -427,6 +427,11 @@ class DatabaseHelper {
         case 48:
           if (!await _columnExists(db, DbParcelas.tableName, DbParcelas.declividade)) {
             await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.declividade} REAL');
+          }
+          break;
+        case 49:
+          if (!await _columnExists(db, 'parcelas', 'arvores')) {
+            await db.execute('ALTER TABLE parcelas ADD COLUMN arvores TEXT');
           }
           break;
       }

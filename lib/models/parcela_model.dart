@@ -115,6 +115,7 @@ class Parcela {
       DbParcelas.rotacao: rotacao, DbParcelas.tipoParcela: tipoParcela, 
       DbParcelas.formaParcela: formaParcela, DbParcelas.lado1: lado1, DbParcelas.lado2: lado2,
       DbParcelas.declividade: declividade, DbParcelas.photoPaths: jsonEncode(photoPaths),
+      'arvores': arvores.map((a) => a.toMap()).toList(), // Firestore aceita List de Map diretamente
       DbParcelas.lastModified: lastModified?.toIso8601String()
     };
   }
@@ -125,6 +126,20 @@ class Parcela {
       if (value is String) return DateTime.tryParse(value);
       return null;
     }
+
+    List<Arvore> listaArvores = [];
+    if (map['arvores'] != null) {
+      if (map['arvores'] is String) {
+        // Se vier do SQLite (Texto)
+        final List<dynamic> decoded = jsonDecode(map['arvores']);
+        listaArvores = decoded.map((item) => Arvore.fromMap(item)).toList();
+      } else if (map['arvores'] is List) {
+        // Se vier do Firebase (Lista de Mapas)
+        listaArvores = (map['arvores'] as List)
+            .map((item) => Arvore.fromMap(Map<String, dynamic>.from(item)))
+            .toList();
+      }
+    }  
 
     List<String> paths = [];
     if (map[DbParcelas.photoPaths] != null) {
@@ -149,6 +164,7 @@ class Parcela {
       longitude: (map[DbParcelas.longitude] as num?)?.toDouble(),
       altitude: (map[DbParcelas.altitude] as num?)?.toDouble(),
       dataColeta: parseDate(map[DbParcelas.dataColeta]),
+      arvores: listaArvores,
       
       // >>> CORREÇÃO 2: Leitura insensível a maiúsculas/minúsculas <<<
       status: StatusParcela.values.firstWhere(

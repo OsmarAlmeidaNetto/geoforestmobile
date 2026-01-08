@@ -381,21 +381,21 @@ class SyncService {
   }
 
   Future<void> _uploadParcela(firestore.DocumentReference docRef, Parcela parcela) async {
-      final firestoreBatch = _firestore.batch();
-      final parcelaMap = parcela.toMap();
-      final prefs = await SharedPreferences.getInstance();
-      parcelaMap['nomeLider'] = parcela.nomeLider ?? prefs.getString('nome_lider');
-      parcelaMap['lastModified'] = firestore.FieldValue.serverTimestamp();
-      firestoreBatch.set(docRef, parcelaMap, firestore.SetOptions(merge: true));
-      final arvores = await _parcelaRepository.getArvoresDaParcela(parcela.dbId!);
-      for (final arvore in arvores) {
-        final arvoreMap = arvore.toMap();
-        arvoreMap['lastModified'] = firestore.FieldValue.serverTimestamp();
-        final arvoreRef = docRef.collection('arvores').doc(arvore.id.toString());
-        firestoreBatch.set(arvoreRef, arvoreMap);
-      }
-      await firestoreBatch.commit();
-  }
+  // 1. Buscamos as árvores no SQLite para garantir que o pacote vá completo
+  final arvores = await _parcelaRepository.getArvoresDaParcela(parcela.dbId!);
+  final parcelaCompleta = parcela.copyWith(arvores: arvores);
+
+  final Map<String, dynamic> parcelaMap = parcelaCompleta.toMap();
+  final prefs = await SharedPreferences.getInstance();
+  
+  parcelaMap['nomeLider'] = parcela.nomeLider ?? prefs.getString('nome_lider');
+  parcelaMap['lastModified'] = firestore.FieldValue.serverTimestamp();
+
+  // 2. ENVIO ÚNICO: Removemos o "batch" daqui pois é apenas 1 documento
+  await docRef.set(parcelaMap, firestore.SetOptions(merge: true));
+  
+  debugPrint("--- [SYNC] Parcela ${parcela.idParcela} enviada com sucesso (Compactada).");
+}     
   
   Future<void> _uploadCubagem(firestore.DocumentReference docRef, CubagemArvore cubagem) async {
       final firestoreBatch = _firestore.batch();

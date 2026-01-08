@@ -9,6 +9,7 @@ import 'package:geoforestv1/models/parcela_model.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
+import 'dart:convert'; 
 
 class ParcelaRepository {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
@@ -65,18 +66,26 @@ class ParcelaRepository {
       
       await txn.delete(DbArvores.tableName, where: '${DbArvores.parcelaId} = ?', whereArgs: [pId]);
       
-      final List<Arvore> arvoresSalvasComId = [];
       for (final a in arvores) {
         final aMap = a.toMap();
         aMap.remove(DbArvores.id); 
         aMap[DbArvores.parcelaId] = pId;
         aMap[DbArvores.lastModified] = now;
-        final newId = await txn.insert(DbArvores.tableName, aMap); 
-        arvoresSalvasComId.add(a.copyWith(id: newId));
+        await txn.insert(DbArvores.tableName, aMap);
       }
+
+      // 3. O SEGREDO: Atualiza a própria parcela com o JSON de todas as árvores
+      // Certifique-se de que a coluna 'arvores' foi criada no seu DatabaseHelper (versão 49)
+      final stringDasArvores = jsonEncode(arvores.map((a) => a.toMap()).toList());
       
-      parcelaModificavel.arvores = arvoresSalvasComId;
-      return parcelaModificavel;
+      await txn.update(
+        DbParcelas.tableName, // Usando a constante para ser profissional
+        {'arvores': stringDasArvores}, 
+        where: '${DbParcelas.id} = ?', 
+        whereArgs: [pId]
+      );
+
+      return parcelaModificavel.copyWith(dbId: pId, arvores: arvores);
     });
   }
 
