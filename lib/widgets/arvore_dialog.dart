@@ -135,49 +135,44 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
   // FUNÇÃO DE CAPTURA DE FOTO COM MARCA D'ÁGUA
   Future<void> _capturarFoto() async {
     final picker = ImagePicker();
-    
-    // Pick image com limites de memória
     final XFile? photo = await picker.pickImage(
       source: ImageSource.camera, 
-      imageQuality: 50, 
-      maxWidth: 1200,   
+      imageQuality: 40, // Qualidade baixa para não estourar RAM
+      maxWidth: 1000,   
     );
     
     if (photo == null) return;
 
-    // LIGA O CARREGANDO (Bloqueia a UI para não clicar duas vezes)
     setState(() => _processandoFoto = true);
 
     try {
+      // Proteção contra campos vazios
+      final linha = _linhaController.text.isEmpty ? "0" : _linhaController.text;
+      final pos = _posicaoController.text.isEmpty ? "0" : _posicaoController.text;
+
       final linhas = [
         "Projeto: ${widget.projetoNome}",
         "Fazenda: ${widget.fazendaNome} | Talhão: ${widget.talhaoNome}",
-        "Parcela: ${widget.idParcela} | Linha: ${_linhaController.text} | Pos: ${_posicaoController.text}",
+        "Parcela: ${widget.idParcela} | L:$linha | P:$pos",
         "Espécie: ${_especieController.text}",
         "Data: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}"
       ];
 
-      final nomeArquivo = "TREE_L${_linhaController.text}_P${_posicaoController.text}_${DateTime.now().millisecondsSinceEpoch}.jpg";
+      final nomeArquivo = "TREE_L${linha}_P${pos}_${DateTime.now().millisecondsSinceEpoch}.jpg";
 
-      // CHAMA O PROCESSAMENTO PESADO
       await ImageUtils.processarESalvarFoto(
         pathOriginal: photo.path,
         linhasMarcaDagua: linhas,
         nomeArquivoFinal: nomeArquivo,
       );
 
-      if (mounted) {
-        setState(() {
-          _fotosArvore.add(photo.path);
-        });
-      }
+      setState(() {
+        _fotosArvore.add(photo.path);
+      });
     } catch (e) {
-      debugPrint("Erro ao processar foto: $e");
+      debugPrint("Erro ao tirar foto: $e");
     } finally {
-      // DESLIGA O CARREGANDO
-      if (mounted) {
-        setState(() => _processandoFoto = false);
-      }
+      if (mounted) setState(() => _processandoFoto = false);
     }
   }
 

@@ -428,8 +428,7 @@ class _InventarioPageState extends State<InventarioPage> {
         linhaAtual: arvore.linha,
         posicaoNaLinhaAtual: arvore.posicaoNaLinha,
         isBio: isBio,
-        // --- PARÂMETROS PARA A FOTO (CORRIGIDO) ---
-        projetoNome: "GeoForest Analytics",
+        projetoNome: "Bio Forest", // Ideal passar o nome real aqui
         fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
         talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
         idParcela: _parcelaAtual.idParcela,

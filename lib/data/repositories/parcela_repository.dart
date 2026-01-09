@@ -24,12 +24,8 @@ class ParcelaRepository {
     return await db.transaction<Parcela>((txn) async {
       int pId;
 
-      // ==============================================================================
-      // 1. LÓGICA DE DETECÇÃO AUTOMÁTICA DO TIPO DE ATIVIDADE (MIGRAÇÃO v61)
-      // ==============================================================================
       String? tipoDetectado = p.atividadeTipo;
 
-      // Se o tipo for nulo, buscamos na tabela de atividades via Talhão
       if (tipoDetectado == null && p.talhaoId != null) {
         final List<Map<String, dynamic>> result = await txn.rawQuery('''
           SELECT A.tipo FROM atividades A
@@ -42,10 +38,10 @@ class ParcelaRepository {
         }
       }
 
-      // Prepara o objeto com o tipo detectado (isso remove o erro de variável não usada)
+      // CORREÇÃO: Você deve incluir o tipoDetectado aqui!
       Parcela parcelaModificavel = p.copyWith(
         isSynced: false,
-        atividadeTipo: tipoDetectado,
+        atividadeTipo: tipoDetectado, // <--- ADICIONAR ISSO
       );
 
       final pMap = parcelaModificavel.toMap();
