@@ -5,16 +5,122 @@ import 'package:geoforestv1/data/datasources/local/database_constants.dart';
 import 'package:flutter/foundation.dart'; // Para o debugPrint
 
 enum Codigo {
-  Normal, Falha, Bifurcada, Multipla, Quebrada, Caida, Dominada, Geada, Fogo,
-  PragasOuDoencas, AtaqueMacaco, VespaMadeira, MortaOuSeca, PonteiraSeca,
-  Rebrota, AtaqueFormiga, Torta, FoxTail, Inclinada, DeitadaVento, FeridaBase,
-  CaidaRaizVento, Resinado, Outro
+  // --- Básicos (Já existiam) ---
+  Normal, 
+  Falha, 
+  BifurcadaAcima, // A
+  BifurcadaAbaixo, 
+  Multipla, 
+  Quebrada, 
+  Caida,      // No CSV novo: CA (Caida ou Deitada)
+  Dominada, 
+  Geada, 
+  Fogo,
+  PragasOuDoencas, 
+  AtaqueMacaco, // Genérico
+  VespaMadeira, 
+  MortaOuSeca, 
+  PonteiraSeca,
+  Rebrota, 
+  AtaqueFormiga, 
+  Torta, 
+  FoxTail, 
+  Inclinada, 
+  DeitadaVento, // No CSV novo: W
+  FeridaBase, 
+  CaidaRaizVento, // No CSV novo: CR
+  Resinado, 
+  Outro,
+  // --- NOVOS (Adicionados baseados nas imagens) ---
+  
+
+
+  // Específicos de Dominância/Desbaste
+  DominanteAssmann, // H
+  MarcadaDesbaste,  // DS
+
+  // Danos Específicos
+  AtaqueMacacoJanela, // J
+  AtaqueMacacoAnel,   // K
+  MortoPorMacaco,     // N (Cuidado: N no CSV também é Normal em alguns, a lógica tratará)
+
+  // Inventário Contínuo / Qualidade
+  Ingresso, // I
+  
+  // Cobertura de Solo / Competição
+  GramineaExotica, // GraE
+  GramineaNativa,  // GraN
+  SoloExposto,     // SolE
+  Arbusto,         // Arb
+  
+  // Peso e Defeitos de Tora
+  Peso2,           // P2
+  DefeitoSup,      // D3S (Terço Superior)
+  DefeitoMed,      // D3M (Terço Médio)
+  DefeitoInf,      // D3I (Terço Inferior)
+  
+  // Controle Operacional
+  SubAmostra,       // Sub
+  SubstEtiqueta,    // SuE
+  CodigoGPS,        // GPS
+  AmostraVazia      // Ava
 }
 
 enum Codigo2 {
-  Bifurcada, Multipla, Quebrada, Geada, Fogo, PragasOuDoencas, AtaqueMacaco,
-  VespaMadeira, MortaOuSeca, PonteiraSeca, Rebrota, AtaqueFormiga, Torta,
-  FoxTail, Inclinada, DeitadaVento, FeridaBase, Resinado, Outro
+  Bifurcada,   
+  Quebrada,        // No CSV novo: CA (Caida ou Deitada)
+  Geada, 
+  Fogo,
+  PragasOuDoencas, 
+  AtaqueMacaco, // Genérico
+  VespaMadeira,   
+  PonteiraSeca,
+  Rebrota, 
+  AtaqueFormiga, 
+  Torta, 
+  FoxTail, 
+  Inclinada, 
+  DeitadaVento, // No CSV novo: W
+  FeridaBase, 
+  CaidaRaizVento, // No CSV novo: CR
+  Resinado, 
+  Outro,
+
+  // --- NOVOS (Adicionados baseados nas imagens) ---
+  
+  // Variações de Bifurcação
+  BifurcadaAcima, // A
+  BifurcadaAbaixo, // B ou BF
+
+  // Específicos de Dominância/Desbaste
+  DominanteAssmann, // H
+  MarcadaDesbaste,  // DS
+
+  // Danos Específicos
+  AtaqueMacacoJanela, // J
+  AtaqueMacacoAnel,   // K
+  MortoPorMacaco,     // N (Cuidado: N no CSV também é Normal em alguns, a lógica tratará)
+
+  // Inventário Contínuo / Qualidade
+  Ingresso, // I
+  
+  // Cobertura de Solo / Competição
+  GramineaExotica, // GraE
+  GramineaNativa,  // GraN
+  SoloExposto,     // SolE
+  Arbusto,         // Arb
+  
+  // Peso e Defeitos de Tora
+  Peso2,           // P2
+  DefeitoSup,      // D3S (Terço Superior)
+  DefeitoMed,      // D3M (Terço Médio)
+  DefeitoInf,      // D3I (Terço Inferior)
+  
+  // Controle Operacional
+  SubAmostra,       // Sub
+  SubstEtiqueta,    // SuE
+  CodigoGPS,        // GPS
+  AmostraVazia      // Ava
 }
 
 class Arvore {

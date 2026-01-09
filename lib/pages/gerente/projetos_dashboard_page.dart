@@ -29,7 +29,7 @@ class _ProjetosDashboardPageState extends State<ProjetosDashboardPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<GerenteProvider>().iniciarMonitoramento();
+      context.read<GerenteProvider>().iniciarMonitoramentoEstrutural;
     });
   }
 
@@ -62,7 +62,7 @@ class _ProjetosDashboardPageState extends State<ProjetosDashboardPage> {
 
         return RefreshIndicator(
           onRefresh: () async =>
-              context.read<GerenteProvider>().iniciarMonitoramento(),
+              context.read<GerenteProvider>().iniciarMonitoramentoEstrutural,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0),
             children: [

@@ -213,7 +213,7 @@ class _HomePageState extends State<HomePage> {
                   ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Dados sincronizados com sucesso!'), backgroundColor: Colors.green));
                 }
                 if (mounted) {
-                  context.read<GerenteProvider>().iniciarMonitoramento();
+                  context.read<GerenteProvider>().iniciarMonitoramentoEstrutural;
                   setState(() => _isSyncing = false);
                 }
               });

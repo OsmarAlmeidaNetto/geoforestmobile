@@ -417,6 +417,7 @@ class _InventarioPageState extends State<InventarioPage> {
         fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
         talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
         idParcela: _parcelaAtual.idParcela,
+        atividadeTipo: _parcelaAtual.atividadeTipo,
       ),
     );
 
@@ -444,6 +445,7 @@ class _InventarioPageState extends State<InventarioPage> {
         fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
         talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
         idParcela: _parcelaAtual.idParcela,
+        atividadeTipo: _parcelaAtual.atividadeTipo,
       ),
     );
 

@@ -1,4 +1,4 @@
-// lib/providers/gerente_provider.dart (VERSÃO FINAL PARA DELEGAÇÃO)
+// lib/providers/gerente_provider.dart (VERSÃO COM LAZY LOADING)
 
 import 'dart:async';
 import 'package:flutter/material.dart';
@@ -24,41 +24,58 @@ class GerenteProvider with ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final LicensingService _licensingService = LicensingService();
 
+  // Streams
   StreamSubscription? _dadosColetaSubscription;
   StreamSubscription? _dadosCubagemSubscription;
   StreamSubscription? _dadosDiarioSubscription;
 
+  // Dados Transacionais (PESADOS - Carregados sob demanda)
   List<Parcela> _parcelasSincronizadas = [];
   List<CubagemArvore> _cubagensSincronizadas = [];
+  
+  // Dados Globais (Médios - Mantidos globais para o Dashboard de Operações)
   List<DiarioDeCampo> _diariosSincronizados = [];
+
+  // Dados Estruturais (LEVES - Carregados no início)
   List<Projeto> _projetos = [];
   List<Atividade> _atividades = [];
   List<Talhao> _talhoes = [];
 
+  // Mapas Auxiliares
   Map<int, int> _talhaoToProjetoMap = {};
   Map<int, int> _talhaoToAtividadeMap = {};
   Map<int, String> _talhaoIdToNomeMap = {};
   Map<String, String> _fazendaIdToNomeMap = {};
 
-  bool _isLoading = true;
+  // Estado
+  bool _isLoading = false;
   String? _error;
-  
+  int? _projetoSelecionadoId; // Rastreia qual projeto está na memória
+
+  // Getters
   bool get isLoading => _isLoading;
   String? get error => _error;
   List<Projeto> get projetos => _projetos;
   List<Atividade> get atividades => _atividades;
   List<Talhao> get talhoes => _talhoes;
+  
+  // Estes getters agora retornam apenas dados do projeto selecionado
   List<Parcela> get parcelasSincronizadas => _parcelasSincronizadas;
   List<CubagemArvore> get cubagensSincronizadas => _cubagensSincronizadas;
+  
   List<DiarioDeCampo> get diariosSincronizados => _diariosSincronizados;
+  
   Map<int, int> get talhaoToProjetoMap => _talhaoToProjetoMap;
   Map<int, int> get talhaoToAtividadeMap => _talhaoToAtividadeMap;
+  
+  // Getter para saber qual projeto está carregado
+  int? get projetoCarregadoId => _projetoSelecionadoId;
 
   GerenteProvider() {
     initializeDateFormatting('pt_BR', null);
   }
 
-  /// Busca no banco de dados local por projetos que foram delegados e retorna os IDs das licenças dos clientes.
+  /// Busca licenças delegadas (mantido igual)
   Future<Set<String>> _getDelegatedLicenseIds() async {
     final projetosLocais = await _projetoRepository.getTodosOsProjetosParaGerente();
     return projetosLocais
@@ -67,111 +84,158 @@ class GerenteProvider with ChangeNotifier {
         .toSet();
   }
 
-  Future<void> iniciarMonitoramento() async {
-    // Cancela as inscrições antigas para evitar múltiplos listeners
-    _dadosColetaSubscription?.cancel();
-    _dadosCubagemSubscription?.cancel();
-    _dadosDiarioSubscription?.cancel();
-
-    // ✅ ETAPA 1: LIMPEZA COMPLETA DOS DADOS EM CACHE
-    // Garante que a "mesa de trabalho" está vazia antes de começar.
-    _parcelasSincronizadas = [];
-    _cubagensSincronizadas = [];
-    _diariosSincronizados = [];
-    _projetos = [];
-    _atividades = [];
-    _talhoes = [];
-    _talhaoToProjetoMap = {};
-    _talhaoToAtividadeMap = {};
-    _talhaoIdToNomeMap = {};
-    _fazendaIdToNomeMap = {};
-    // FIM DA LIMPEZA
-
+  /// ETAPA 1: CARGA ESTRUTURAL (Leve)
+  /// Chamado no initState do Dashboard ou Home. Carrega apenas nomes e IDs.
+  Future<void> iniciarMonitoramentoEstrutural() async {
     _isLoading = true;
     _error = null;
     notifyListeners();
-    
+
     try {
-      // ✅ ETAPA 2: O RESTO DA LÓGICA CONTINUA IGUAL
-      // Agora ela vai popular as listas limpas apenas com os dados do usuário correto.
       final user = _auth.currentUser;
       if (user == null) throw Exception("Usuário não autenticado.");
 
-      final licenseDoc = await _licensingService.findLicenseDocumentForUser(user);
-      if (licenseDoc == null) throw Exception("Licença do usuário não encontrada.");
-      
-      // 1. Pega o ID da licença própria do usuário logado.
-      final ownLicenseId = licenseDoc.id;
-      
-      // 2. Busca no banco de dados local por IDs de licenças de clientes (projetos delegados).
-      final delegatedLicenseIds = await _getDelegatedLicenseIds();
-      
-      // 3. Combina as duas listas, removendo duplicatas, para criar a lista final de licenças a serem monitoradas.
-      final allLicenseIdsToMonitor = {ownLicenseId, ...delegatedLicenseIds}.toList();
-      
-      debugPrint(">>> GerenteProvider INICIANDO MONITORAMENTO PARA AS LICENÇAS: $allLicenseIdsToMonitor");
-      
-      // Carrega a hierarquia local para referência (projetos, atividades, etc.)
+      // 1. Carrega Estrutura Local (SQLite) ou Nuvem
       _projetos = await _projetoRepository.getTodosOsProjetosParaGerente();
       _projetos.sort((a, b) => a.nome.compareTo(b.nome));
       
       _atividades = await _atividadeRepository.getTodasAsAtividades();
-      final Map<int, String> atividadeIdToTipoMap = { for (var a in _atividades) if (a.id != null) a.id!: a.tipo };
+      _talhoes = await _talhaoRepository.getTodosOsTalhoes();
       
       await _buildAuxiliaryMaps();
 
-      // 4. Passa a LISTA COMPLETA de IDs para os streams do GerenteService.
-      // Agora, o stream ouvirá tanto a sua coleção no Firestore quanto as coleções dos seus clientes.
-      _dadosColetaSubscription = _gerenteService.getDadosColetaStream(licenseIds: allLicenseIdsToMonitor).listen(
-        (listaDeParcelas) async {
-          await _buildAuxiliaryMaps();
-          _parcelasSincronizadas = listaDeParcelas.map((p) {
-            final nomeFazenda = _fazendaIdToNomeMap[p.idFazenda] ?? p.nomeFazenda;
-            final nomeTalhao = _talhaoIdToNomeMap[p.talhaoId] ?? p.nomeTalhao;
-            final projetoId = p.projetoId ?? _talhaoToProjetoMap[p.talhaoId];
-            final atividadeId = _talhaoToAtividadeMap[p.talhaoId];
-            final tipoAtividade = atividadeId != null ? atividadeIdToTipoMap[atividadeId] : null;
-            return p.copyWith(
-              nomeFazenda: nomeFazenda, 
-              nomeTalhao: nomeTalhao,
-              projetoId: projetoId,
-              atividadeTipo: tipoAtividade,
-            );
-          }).toList();
-          if (_isLoading) _isLoading = false;
-          _error = null;
-          notifyListeners();
-        },
-        onError: (e) {
-          _error = "Erro ao buscar dados de coleta: $e";
-          _isLoading = false;
-          notifyListeners();
-        },
-      );
+      // 2. Prepara Licenças para monitoramento de Diários
+      final licenseDoc = await _licensingService.findLicenseDocumentForUser(user);
+      final ownLicenseId = licenseDoc?.id;
+      final delegatedLicenseIds = await _getDelegatedLicenseIds();
+      final allLicenseIds = {if(ownLicenseId != null) ownLicenseId, ...delegatedLicenseIds}.toList();
 
-      _dadosCubagemSubscription = _gerenteService.getDadosCubagemStream(licenseIds: allLicenseIdsToMonitor).listen(
-        (listaDeCubagens) {
-          _cubagensSincronizadas = listaDeCubagens;
-          notifyListeners();
-        },
-        onError: (e) => debugPrint("Erro no stream de cubagens: $e"),
-      );
-
-      _dadosDiarioSubscription = _gerenteService.getDadosDiarioStream(licenseIds: allLicenseIdsToMonitor).listen(
+      // 3. Monitora Diários (Mantido global pois é usado no Dashboard de Operações)
+      _dadosDiarioSubscription?.cancel();
+      _dadosDiarioSubscription = _gerenteService.getDadosDiarioStream(licenseIds: allLicenseIds).listen(
         (listaDeDiarios) {
           _diariosSincronizados = listaDeDiarios;
           notifyListeners();
         },
-        onError: (e) => debugPrint("Erro no stream de diários de campo: $e"),
+        onError: (e) => debugPrint("Erro stream diários: $e"),
       );
 
+      _isLoading = false;
+      notifyListeners();
+
     } catch (e) {
-      _error = "Erro ao iniciar monitoramento: $e";
+      _error = "Erro ao carregar estrutura: $e";
       _isLoading = false;
       notifyListeners();
     }
   }
 
+  /// ETAPA 2: CARGA SOB DEMANDA (Pesada)
+  /// Chamado quando o usuário seleciona um projeto no Dropdown.
+  Future<void> carregarDadosDoProjeto(int projetoId) async {
+    // Se já está carregado, não faz nada
+    if (_projetoSelecionadoId == projetoId) return;
+
+    _isLoading = true;
+    
+    // 1. LIMPEZA DA MEMÓRIA
+    _parcelasSincronizadas = [];
+    _cubagensSincronizadas = [];
+    _dadosColetaSubscription?.cancel();
+    _dadosCubagemSubscription?.cancel();
+    _projetoSelecionadoId = projetoId;
+    
+    notifyListeners();
+
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final licenseDoc = await _licensingService.findLicenseDocumentForUser(user);
+      final ownLicenseId = licenseDoc?.id;
+      final delegatedLicenseIds = await _getDelegatedLicenseIds();
+      final allLicenseIds = {if(ownLicenseId != null) ownLicenseId, ...delegatedLicenseIds}.toList();
+
+      debugPrint(">>> Carregando dados pesados APENAS para o projeto ID: $projetoId");
+
+      // 2. Stream de Parcelas (Filtrado pelo ID do Projeto no Firestore)
+      _dadosColetaSubscription = _gerenteService.getParcelasDoProjetoStream(
+        licenseIds: allLicenseIds, 
+        projetoId: projetoId
+      ).listen((listaDeParcelas) async {
+        
+        // Mapeamento de nomes (Enrichment)
+        _parcelasSincronizadas = listaDeParcelas.map((p) {
+          final nomeFazenda = _fazendaIdToNomeMap[p.idFazenda] ?? p.nomeFazenda;
+          final nomeTalhao = _talhaoIdToNomeMap[p.talhaoId] ?? p.nomeTalhao;
+          // O projetoId já vem filtrado, mas garantimos
+          final projId = p.projetoId ?? projetoId; 
+          
+          final atividadeId = _talhaoToAtividadeMap[p.talhaoId];
+          // Encontra o tipo da atividade
+          final tipoAtividade = atividadeId != null 
+              ? _atividades.firstWhere((a) => a.id == atividadeId, orElse: () => Atividade(projetoId: 0, tipo: '', descricao: '', dataCriacao: DateTime.now())).tipo 
+              : null;
+
+          return p.copyWith(
+            nomeFazenda: nomeFazenda, 
+            nomeTalhao: nomeTalhao,
+            projetoId: projId,
+            atividadeTipo: tipoAtividade,
+          );
+        }).toList();
+
+        _isLoading = false;
+        notifyListeners();
+      }, onError: (e) {
+        _error = "Erro ao baixar parcelas: $e";
+        _isLoading = false;
+        notifyListeners();
+      });
+
+      // 3. Stream de Cubagens (Filtrado pelos Talhões do Projeto)
+      // Primeiro, descobrimos quais talhões pertencem a este projeto
+      final atividadesDoProjetoIds = _atividades
+          .where((a) => a.projetoId == projetoId)
+          .map((a) => a.id)
+          .toSet();
+      
+      final talhoesDoProjetoIds = _talhoes
+          .where((t) => atividadesDoProjetoIds.contains(t.fazendaAtividadeId))
+          .map((t) => t.id!)
+          .toList();
+
+      if (talhoesDoProjetoIds.isNotEmpty) {
+        _dadosCubagemSubscription = _gerenteService.getCubagensDoProjetoStream(
+          licenseIds: allLicenseIds, 
+          talhoesIds: talhoesDoProjetoIds // Filtro aplicado aqui
+        ).listen((listaDeCubagens) {
+          _cubagensSincronizadas = listaDeCubagens;
+          notifyListeners();
+        }, onError: (e) => debugPrint("Erro ao baixar cubagens: $e"));
+      } else {
+        _cubagensSincronizadas = [];
+        notifyListeners();
+      }
+
+    } catch (e) {
+      _error = "Erro ao carregar projeto: $e";
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Limpa os dados pesados da memória (útil ao sair do dashboard)
+  void limparProjetoSelecionado() {
+    _dadosColetaSubscription?.cancel();
+    _dadosCubagemSubscription?.cancel();
+    _parcelasSincronizadas = [];
+    _cubagensSincronizadas = [];
+    _projetoSelecionadoId = null;
+    notifyListeners();
+  }
+
+  // Mantido igual para auxiliar nos nomes
   Future<void> _buildAuxiliaryMaps() async {
     _talhoes = await _talhaoRepository.getTodosOsTalhoes();
     _talhaoToProjetoMap = { for (var talhao in _talhoes) if (talhao.id != null && talhao.projetoId != null) talhao.id!: talhao.projetoId! };

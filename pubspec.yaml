@@ -95,6 +95,7 @@ flutter:
     - assets/sounds/intro.mp3
     - assets/sounds/click.mp3
     - assets/data/especies.csv
+    - assets/data/codigos/
 
 flutter_launcher_icons:
   android: "launcher_icon"

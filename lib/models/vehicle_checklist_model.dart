@@ -1,3 +1,5 @@
+// lib/models/vehicle_checklist_model.dart
+
 import 'dart:convert';
 
 class VehicleChecklist {
@@ -17,6 +19,10 @@ class VehicleChecklist {
   final bool isMotorista;
   final Map<String, String> itens;
   final String? observacoes;
+  
+  // CAMPO PARA FOTOS
+  final List<String> fotosAvarias;
+  
   final DateTime lastModified;
 
   VehicleChecklist({
@@ -27,12 +33,13 @@ class VehicleChecklist {
     this.placa,
     this.kmAtual,
     this.modeloVeiculo,
-    this.prefixo,          // NOVO
-    this.categoriaCnh,     // NOVO
-    this.vencimentoCnh,    // NOVO
+    this.prefixo,
+    this.categoriaCnh,
+    this.vencimentoCnh,
     required this.isMotorista,
     this.itens = const {},
     this.observacoes,
+    this.fotosAvarias = const [], // Inicializa como lista vazia se não passar nada
     required this.lastModified,
   });
 
@@ -45,17 +52,38 @@ class VehicleChecklist {
       'placa': placa,
       'km_atual': kmAtual,
       'modelo_veiculo': modeloVeiculo,
-      'prefixo': prefixo,                   // NOVO
-      'categoria_cnh': categoriaCnh,        // NOVO
-      'vencimento_cnh': vencimentoCnh?.toIso8601String(), // NOVO
+      'prefixo': prefixo,
+      'categoria_cnh': categoriaCnh,
+      'vencimento_cnh': vencimentoCnh?.toIso8601String(),
       'is_motorista': isMotorista ? 1 : 0,
       'itens_json': jsonEncode(itens),
       'observacoes': observacoes,
+      // Salva a lista de caminhos como uma String JSON no banco
+      'fotos_avarias': jsonEncode(fotosAvarias), 
       'lastModified': lastModified.toIso8601String(),
     };
   }
 
   factory VehicleChecklist.fromMap(Map<String, dynamic> map) {
+    // --- LÓGICA DECODIFICADORA ADICIONADA AQUI ---
+    List<String> listaFotos = [];
+    
+    if (map['fotos_avarias'] != null) {
+      try {
+        // Tenta decodificar a string JSON
+        var decoded = jsonDecode(map['fotos_avarias']);
+        if (decoded is List) {
+          listaFotos = List<String>.from(decoded);
+        }
+      } catch (_) {
+        // Se falhar (ex: migração antiga), tenta ler direto se já for lista
+        if (map['fotos_avarias'] is List) {
+           listaFotos = List<String>.from(map['fotos_avarias']);
+        }
+      }
+    }
+    // ----------------------------------------------
+
     return VehicleChecklist(
       id: map['id'],
       dataRegistro: DateTime.parse(map['data_registro']),
@@ -64,12 +92,14 @@ class VehicleChecklist {
       placa: map['placa'],
       kmAtual: map['km_atual'],
       modeloVeiculo: map['modelo_veiculo'],
-      prefixo: map['prefixo'], // NOVO
-      categoriaCnh: map['categoria_cnh'], // NOVO
-      vencimentoCnh: map['vencimento_cnh'] != null ? DateTime.parse(map['vencimento_cnh']) : null, // NOVO
+      prefixo: map['prefixo'],
+      categoriaCnh: map['categoria_cnh'],
+      vencimentoCnh: map['vencimento_cnh'] != null ? DateTime.parse(map['vencimento_cnh']) : null,
       isMotorista: map['is_motorista'] == 1,
       itens: Map<String, String>.from(jsonDecode(map['itens_json'] ?? '{}')),
       observacoes: map['observacoes'],
+      // Agora a variável 'listaFotos' existe e pode ser usada
+      fotosAvarias: listaFotos, 
       lastModified: DateTime.parse(map['lastModified']),
     );
   }

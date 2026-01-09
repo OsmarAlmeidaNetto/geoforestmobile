@@ -1,6 +1,8 @@
 // lib/services/pdf_service.dart (VERSÃO CORRIGIDA FINAL)
 
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:collection/collection.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +25,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geoforestv1/models/vehicle_checklist_model.dart';
+import 'dart:convert';
 
 class PdfService {
   final _analiseRepository = AnaliseRepository();
@@ -451,147 +454,180 @@ class PdfService {
     await _salvarEAbriPdf(context, pdf, nomeArquivo);
   }
 
-  Future<void> gerarChecklistVeicularPdf(BuildContext context, VehicleChecklist checklist) async {
-    final pdf = pw.Document();
+  Future<void> gerarChecklistHtml(BuildContext context, VehicleChecklist checklist) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gerando relatório HTML...')));
 
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(20),
-        build: (pw.Context ctx) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.start,
-            children: [
-              // Cabeçalho
-              pw.Container(
-                decoration: pw.BoxDecoration(border: pw.Border.all()),
-                padding: const pw.EdgeInsets.all(5),
-                child: pw.Column(children: [
-                  pw.Text("CHECK LIST DE VEÍCULOS", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 16)),
-                  pw.SizedBox(height: 5),
-                  
-                  // Linha 1: Nome e CNH
-                  pw.Row(
-                    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                    children: [
-                      pw.Text("Motorista: ${checklist.nomeMotorista}", style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text("Categoria CNH: ${checklist.categoriaCnh ?? ''}", style: const pw.TextStyle(fontSize: 10)),
-                      pw.Text("Vencimento: ${checklist.vencimentoCnh != null ? DateFormat('dd/MM/yyyy').format(checklist.vencimentoCnh!) : ''}", style: const pw.TextStyle(fontSize: 10)),
-                    ]
-                  ),
-                  pw.Divider(height: 5, thickness: 0.5),
+      // 1. Processar Imagens para Base64 (Texto)
+      // Isso incorpora a imagem dentro do HTML para não precisar enviar uma pasta de arquivos.
+      String htmlImagens = "";
+      
+      if (checklist.fotosAvarias.isNotEmpty) {
+        htmlImagens += "<h3>Registro Fotográfico</h3><div class='gallery'>";
+        
+        for (String path in checklist.fotosAvarias) {
+          final File file = File(path);
+          if (await file.exists()) {
+            // Comprime antes de converter para Base64 para não travar
+            final Uint8List? bytes = await FlutterImageCompress.compressWithFile(
+              file.absolute.path,
+              minWidth: 800,
+              minHeight: 800,
+              quality: 50,
+            );
 
-                  // Linha 2: Veículo
-                  if (checklist.isMotorista) 
-                    pw.Row(
-                      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, 
-                      children: [
-                        pw.Text("Prefixo: ${checklist.prefixo ?? ''}", style: const pw.TextStyle(fontSize: 10)),
-                        pw.Text("Placa: ${checklist.placa ?? ''}", style: const pw.TextStyle(fontSize: 10)),
-                        pw.Text("KM: ${checklist.kmAtual?.toStringAsFixed(0) ?? ''}", style: const pw.TextStyle(fontSize: 10)),
-                        pw.Text("Veículo: ${checklist.modeloVeiculo ?? ''}", style: const pw.TextStyle(fontSize: 10)),
-                      ]
-                    )
-                  else 
-                     pw.Center(child: pw.Text("REGISTRO DE NÃO-UTILIZAÇÃO DE VEÍCULO", style: const pw.TextStyle(fontSize: 10))),
-                  
-                  pw.Divider(height: 5, thickness: 0.5),
-                  
-                  // Linha 3: Data
-                  pw.Align(
-                    alignment: pw.Alignment.centerRight,
-                    child: pw.Text("Data: ${DateFormat('dd/MM/yyyy HH:mm').format(checklist.dataRegistro)}", style: const pw.TextStyle(fontSize: 9))
-                  ),
-                ]),
-              ),
-              
-              pw.SizedBox(height: 10),
+            if (bytes != null) {
+              final String base64Image = base64Encode(bytes);
+              htmlImagens += "<img src='data:image/jpeg;base64,$base64Image' class='photo' />";
+            }
+          }
+        }
+        htmlImagens += "</div>";
+      }
 
-              if (checklist.isMotorista) 
-                pw.Table(
-                  border: pw.TableBorder.all(),
-                  columnWidths: {
-                    0: const pw.FixedColumnWidth(25), // N
-                    1: const pw.FlexColumnWidth(),    // Descricao
-                    2: const pw.FixedColumnWidth(30), // C
-                    3: const pw.FixedColumnWidth(30), // NC
-                    4: const pw.FixedColumnWidth(30), // NA
-                  },
-                  children: [
-                    // Header da Tabela
-                    pw.TableRow(
-                      decoration: const pw.BoxDecoration(color: PdfColors.grey300),
-                      children: [
-                        pw.Center(child: pw.Text("N.", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
-                        pw.Padding(padding: const pw.EdgeInsets.only(left: 4), child: pw.Text("Descrição", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
-                        pw.Center(child: pw.Text("C", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
-                        pw.Center(child: pw.Text("N.C", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
-                        pw.Center(child: pw.Text("N.A", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 9))),
-                      ]
-                    ),
-                    // Linhas
-                    ...checklistItensDescricao.asMap().entries.map((entry) {
-                      final index = entry.key + 1;
-                      final desc = entry.value.substring(entry.value.indexOf('.') + 1).trim(); 
-                      final status = checklist.itens[index.toString()];
+      // 2. Montar as linhas da tabela
+      String linhasTabela = "";
+      // checklistItensDescricao é a sua lista fixa de strings
+      // Importe ela ou copie a lista para cá se não estiver acessível
+      // Supondo que checklistItensDescricao esteja disponível globalmente ou passe como parâmetro
+      
+      // Lista manual caso não tenha acesso à variável global aqui
+      const List<String> itensDescricao = [
+        "1. Documentação do veículo", "2. Manual do veículo", "3. Ar condicionado",
+        "4. Lataria", "5. Lanternas e faróis", "6. Luz Baixa", "7. Meia Luz",
+        "8. Luz Alta", "9. Luzes de seta", "10. Pisca Alerta", "11. Pneu",
+        "12. Estepe", "13. Macaco", "14. Chave de Roda", "15. Triângulo",
+        "16. Limpeza externa", "17. Para-brisa", "18. Limpador", 
+        "19. Espelhos", "20. Quebra sol", "21. Bancos", "22. Cinto",
+        "23. Luzes painel", "24. Limpeza interna", "25. Travas", 
+        "26. Rastreador", "27. Nível óleo", "28. Nível água"
+      ];
 
-                      return pw.TableRow(
-                        children: [
-                          // Removido o 'const' dos TextStyles abaixo
-                          pw.Center(child: pw.Text("$index", style: pw.TextStyle(fontSize: 9))),
-                          pw.Padding(padding: const pw.EdgeInsets.only(left: 4, top: 2, bottom: 2), child: pw.Text(desc, style: pw.TextStyle(fontSize: 9))),
-                          pw.Center(child: pw.Text(status == 'C' ? 'X' : '', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
-                          pw.Center(child: pw.Text(status == 'NC' ? 'X' : '', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
-                          pw.Center(child: pw.Text(status == 'NA' ? 'X' : '', style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold))),
-                        ]
-                      );
-                    }).toList()
-                  ]
-                ),
+      for (int i = 0; i < itensDescricao.length; i++) {
+        final index = (i + 1).toString();
+        final desc = itensDescricao[i];
+        final status = checklist.itens[index] ?? '';
+        
+        String checkC = status == 'C' ? '<b>X</b>' : '';
+        String checkNC = status == 'NC' ? '<b>X</b>' : '';
+        String checkNA = status == 'NA' ? '<b>X</b>' : '';
 
-              pw.SizedBox(height: 10),
-              
-              // Observações
-              pw.Container(
-                width: double.infinity,
-                height: 60,
-                decoration: pw.BoxDecoration(border: pw.Border.all()),
-                padding: const pw.EdgeInsets.all(5),
-                child: pw.Column(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-                  pw.Text("Observações:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 10)),
-                  pw.Text(checklist.observacoes ?? '', style: const pw.TextStyle(fontSize: 10)),
-                ])
-              ),
+        // Se a linha for par, cor cinza claro
+        String rowClass = i % 2 == 0 ? 'even' : 'odd';
 
-              pw.Spacer(),
+        linhasTabela += """
+          <tr class='$rowClass'>
+            <td style='text-align:center'>$index</td>
+            <td>$desc</td>
+            <td style='text-align:center'>$checkC</td>
+            <td style='text-align:center'>$checkNC</td>
+            <td style='text-align:center'>$checkNA</td>
+          </tr>
+        """;
+      }
 
-              // Assinaturas (Dois campos lado a lado)
-              pw.Padding(
-                padding: const pw.EdgeInsets.only(top: 20),
-                child: pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceAround, // Espaçamento igual
-                  children: [
-                    pw.Column(children: [
-                      pw.Container(width: 180, height: 1, color: PdfColors.black), // Linha
-                      pw.SizedBox(height: 4),
-                      pw.Text("Assinatura do Motorista", style: const pw.TextStyle(fontSize: 10)),
-                    ]),
-                    pw.Column(children: [
-                      pw.Container(width: 180, height: 1, color: PdfColors.black), // Linha
-                      pw.SizedBox(height: 4),
-                      pw.Text("Assinatura do Responsável da Empresa", style: const pw.TextStyle(fontSize: 10)),
-                    ]),
-                  ]
-                ),
-              )
-            ],
-          );
-        },
-      ),
-    );
+      // 3. Montar o HTML Completo (CSS + Corpo)
+      String htmlContent = """
+      <!DOCTYPE html>
+      <html lang="pt-BR">
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Checklist Veicular</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
+          h1 { color: #023853; border-bottom: 2px solid #023853; padding-bottom: 10px; }
+          .header-box { border: 1px solid #333; padding: 10px; margin-bottom: 15px; background-color: #f9f9f9; }
+          .row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          th, td { border: 1px solid #ccc; padding: 6px; }
+          th { background-color: #023853; color: white; }
+          tr.even { background-color: #f2f2f2; }
+          .obs-box { border: 1px solid #333; padding: 10px; min-height: 50px; margin-top: 10px; }
+          .gallery { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+          .photo { width: 150px; height: 150px; object-fit: cover; border: 1px solid #ccc; padding: 2px; }
+          .signature-area { margin-top: 40px; display: flex; justify-content: space-around; }
+          .sign-line { border-top: 1px solid #000; width: 40%; text-align: center; padding-top: 5px; }
+        </style>
+      </head>
+      <body>
+        <h1>CHECK LIST DE VEÍCULOS</h1>
+        
+        <div class="header-box">
+          <div class="row">
+            <strong>Motorista: ${checklist.nomeMotorista}</strong>
+            <span>CNH: ${checklist.categoriaCnh ?? ''}</span>
+            <span>Venc: ${checklist.vencimentoCnh != null ? DateFormat('dd/MM/yyyy').format(checklist.vencimentoCnh!) : ''}</span>
+          </div>
+          <hr style="border: 0; border-top: 1px solid #ccc;">
+          <div class="row">
+             <span>Placa: <strong>${checklist.placa ?? ''}</strong></span>
+             <span>KM: <strong>${checklist.kmAtual?.toStringAsFixed(0) ?? ''}</strong></span>
+             <span>Veículo: ${checklist.modeloVeiculo ?? ''}</span>
+             <span>Prefixo: ${checklist.prefixo ?? ''}</span>
+          </div>
+          <div style="text-align: right; margin-top: 5px; color: #666;">
+            Data: ${DateFormat('dd/MM/yyyy HH:mm').format(checklist.dataRegistro)}
+          </div>
+        </div>
 
-    final nomeArquivo = 'Checklist_${checklist.isMotorista ? "Veiculo" : "Passageiro"}_${DateFormat('yyyyMMdd').format(checklist.dataRegistro)}.pdf';
-    await _salvarEAbriPdf(context, pdf, nomeArquivo);
+        <table>
+          <thead>
+            <tr>
+              <th width="5%">N.</th>
+              <th>Descrição</th>
+              <th width="8%">C</th>
+              <th width="8%">N.C</th>
+              <th width="8%">N.A</th>
+            </tr>
+          </thead>
+          <tbody>
+            $linhasTabela
+          </tbody>
+        </table>
+
+        <div class="obs-box">
+          <strong>Observações:</strong><br>
+          ${checklist.observacoes ?? 'Sem observações.'}
+        </div>
+
+        $htmlImagens
+
+        <div class="signature-area">
+          <div class="sign-line">Assinatura do Motorista</div>
+          <div class="sign-line">Responsável da Empresa</div>
+        </div>
+      </body>
+      </html>
+      """;
+
+      // 4. Salvar arquivo
+      final downloadsDirectory = await _getDownloadsDirectory(context);
+      if (downloadsDirectory == null) return;
+
+      final relatoriosDir = Directory('${downloadsDirectory.path}/GeoForest/Relatorios');
+      if (!await relatoriosDir.exists()) {
+        await relatoriosDir.create(recursive: true);
+      }
+
+      final nomeArquivo = 'Checklist_${DateFormat('yyyyMMdd_HHmm').format(checklist.dataRegistro)}.html';
+      final file = File('${relatoriosDir.path}/$nomeArquivo');
+      
+      await file.writeAsString(htmlContent);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).removeCurrentSnackBar();
+        
+        // Abre o arquivo (Vai abrir no Chrome do celular ou navegador padrão)
+        await OpenFile.open(file.path);
+      }
+
+    } catch (e) {
+      debugPrint("Erro ao gerar HTML: $e");
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red));
+      }
+    }
   }
 
   

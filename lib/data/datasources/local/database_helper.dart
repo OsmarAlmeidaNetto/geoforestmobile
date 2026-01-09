@@ -31,7 +31,7 @@ class DatabaseHelper {
   Future<Database> _initDatabase() async {
     return await openDatabase(
       join(await getDatabasesPath(), 'geoforestv1.db'),
-      version: 62, // Mantemos a versão 62
+      version: 63, // Mantemos a versão 63
       onConfigure: _onConfigure,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -263,6 +263,7 @@ class DatabaseHelper {
         is_motorista INTEGER NOT NULL,
         itens_json TEXT,
         observacoes TEXT,
+        fotos_avarias TEXT,
         lastModified TEXT NOT NULL
       )
     ''');
@@ -645,7 +646,18 @@ class DatabaseHelper {
               debugPrint("Coluna photoPaths adicionada em PARCELAS.");
             } catch (e) { debugPrint("Erro em Parcelas: $e"); }
           }
-          break;       
+          break;
+        case 63:
+          debugPrint(">>> EXECUTANDO MIGRAÇÃO V63 (Fotos Checklist) <<<");
+          if (!await _columnExists(db, 'checklist_veicular', 'fotos_avarias')) {
+            try {
+              await db.execute('ALTER TABLE checklist_veicular ADD COLUMN fotos_avarias TEXT');
+              debugPrint("Coluna fotos_avarias adicionada.");
+            } catch (e) {
+              debugPrint("Erro ao adicionar coluna fotos_avarias: $e");
+            }
+          }
+          break;      
       }
     }
   }

@@ -279,7 +279,7 @@ class _ListaProjetosPageState extends State<ListaProjetosPage> {
         await _syncService.sincronizarDados();
 
         if (mounted) {
-          await context.read<GerenteProvider>().iniciarMonitoramento();
+          await context.read<GerenteProvider>().iniciarMonitoramentoEstrutural;
         }
 
         await _checkUserRoleAndLoadProjects();

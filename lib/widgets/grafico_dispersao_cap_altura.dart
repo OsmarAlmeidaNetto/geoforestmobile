@@ -38,7 +38,8 @@ class _GraficoDispersaoCapAlturaState extends State<GraficoDispersaoCapAltura> {
       case Codigo.Normal: return Colors.blue; 
       case Codigo.Falha: return Colors.redAccent;
       case Codigo.MortaOuSeca: return Colors.grey;
-      case Codigo.Bifurcada: return Colors.purpleAccent;
+      case Codigo.BifurcadaAcima: return Colors.purpleAccent;
+      case Codigo.BifurcadaAbaixo: return Colors.pinkAccent;
       case Codigo.Quebrada: return Colors.orangeAccent;
       case Codigo.Caida: return Colors.brown;
       case Codigo.Multipla: return Colors.yellowAccent;

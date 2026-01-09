@@ -1,4 +1,4 @@
-// lib/services/gerente_service.dart (VERSÃO CORRIGIDA E UNIFICADA)
+// lib/services/gerente_service.dart (VERSÃO LIMPA E FINAL)
 
 import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -15,28 +15,24 @@ class GerenteService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final LicensingService _licensingService = LicensingService();
 
-  // Função auxiliar para criar um stream para uma coleção específica de um cliente
-  Stream<QuerySnapshot> _getStreamForCollection(String licenseId, String collectionName) {
-    return _firestore
-        .collection('clientes')
-        .doc(licenseId)
-        .collection(collectionName)
-        .snapshots();
-  }
+  // (Método _getStreamForCollection removido pois não era mais usado)
 
   // Combina múltiplos streams em um único stream que emite a lista agregada.
   Stream<List<T>> _getAggregatedStream<T>({
     required List<String> licenseIds,
     required String collectionName,
     required T Function(Map<String, dynamic>) fromMap,
+    Query Function(CollectionReference)? queryBuilder,
   }) {
     final controller = StreamController<List<T>>();
     final subscriptions = <StreamSubscription>[];
-    final allData = <String, List<T>>{}; // Mapa para guardar os dados de cada licença
+    final allData = <String, List<T>>{}; 
 
     void updateStream() {
-      final aggregatedList = allData.values.expand((list) => list).toList();
-      controller.add(aggregatedList);
+      if (!controller.isClosed) {
+        final aggregatedList = allData.values.expand((list) => list).toList();
+        controller.add(aggregatedList);
+      }
     }
 
     if (licenseIds.isEmpty) {
@@ -46,11 +42,24 @@ class GerenteService {
     }
 
     for (final licenseId in licenseIds) {
-      final stream = _getStreamForCollection(licenseId, collectionName);
-      final subscription = stream.listen(
+      // 1. Obtém a referência da coleção
+      CollectionReference collectionRef = _firestore
+          .collection('clientes')
+          .doc(licenseId)
+          .collection(collectionName);
+
+      // 2. Aplica o filtro (queryBuilder) se ele existir
+      Query query = collectionRef;
+      if (queryBuilder != null) {
+        query = queryBuilder(collectionRef);
+      }
+
+      final subscription = query.snapshots().listen(
         (snapshot) {
           try {
-            final dataList = snapshot.docs.map((doc) => fromMap(doc.data() as Map<String, dynamic>)).toList();
+            final dataList = snapshot.docs
+                .map((doc) => fromMap(doc.data() as Map<String, dynamic>))
+                .toList();
             allData[licenseId] = dataList;
             updateStream();
           } catch (e) {
@@ -71,7 +80,8 @@ class GerenteService {
     return controller.stream;
   }
   
-  // Os métodos públicos agora usam o agregador
+  // --- MÉTODOS ORIGINAIS (Mantidos para compatibilidade ou uso global) ---
+
   Stream<List<Parcela>> getDadosColetaStream({required List<String> licenseIds}) {
     return _getAggregatedStream<Parcela>(
       licenseIds: licenseIds,
@@ -95,9 +105,36 @@ class GerenteService {
       fromMap: DiarioDeCampo.fromMap,
     );
   }
+
+  // --- NOVOS MÉTODOS PARA LAZY LOADING (Carregamento sob Demanda) ---
+
+  Stream<List<Parcela>> getParcelasDoProjetoStream({
+    required List<String> licenseIds, 
+    required int projetoId
+  }) {
+    return _getAggregatedStream<Parcela>(
+      licenseIds: licenseIds,
+      collectionName: 'dados_coleta',
+      fromMap: Parcela.fromMap,
+      queryBuilder: (collection) => collection.where('projetoId', isEqualTo: projetoId),
+    );
+  }
+
+  Stream<List<CubagemArvore>> getCubagensDoProjetoStream({
+    required List<String> licenseIds,
+    required List<int> talhoesIds 
+  }) {
+    if (talhoesIds.isEmpty) return Stream.value([]);
+    
+    return _getAggregatedStream<CubagemArvore>(
+      licenseIds: licenseIds,
+      collectionName: 'dados_cubagem',
+      fromMap: CubagemArvore.fromMap,
+    ).map((listaCompleta) {
+      return listaCompleta.where((c) => c.talhaoId != null && talhoesIds.contains(c.talhaoId)).toList();
+    });
+  }
   
-  // Este método busca os projetos da licença do usuário atual.
-  // Ele NÃO precisa de agregação, pois projetos são específicos da licença local.
   Future<List<Projeto>> getTodosOsProjetosStream() async {
     try {
       final user = _auth.currentUser;
@@ -105,20 +142,17 @@ class GerenteService {
 
       final licenseDoc = await _licensingService.findLicenseDocumentForUser(user);
       if (licenseDoc == null) {
-        debugPrint("--- [GerenteService] Nenhuma licença própria encontrada para ${user.uid}. Retornando 0 projetos próprios.");
+        debugPrint("--- [GerenteService] Nenhuma licença própria encontrada. Retornando 0 projetos.");
         return []; 
       }
 
       final licenseId = licenseDoc.id;
-      debugPrint("--- [GerenteService] Buscando projetos para a licença: $licenseId");
-
       final snapshot = await _firestore
           .collection('clientes')
           .doc(licenseId)
           .collection('projetos')
           .get();
       
-      debugPrint("--- [GerenteService] ${snapshot.docs.length} projetos encontrados no Firestore.");
       return snapshot.docs.map((doc) => Projeto.fromMap(doc.data())).toList();
     } catch (e) {
       debugPrint("--- [GerenteService] ERRO ao buscar projetos: $e");

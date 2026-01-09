@@ -80,7 +80,7 @@ class _OperacoesDashboardPageState extends State<OperacoesDashboardPage> {
             _buildFiltros(context),
             Expanded(
               child: RefreshIndicator(
-                onRefresh: () => gerenteProvider.iniciarMonitoramento(),
+                onRefresh: () => gerenteProvider.iniciarMonitoramentoEstrutural(),
                 child: bodyContent,
               ),
             ),

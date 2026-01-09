@@ -24,6 +24,7 @@ import 'package:flutter_archive/flutter_archive.dart';
 import 'package:geoforestv1/models/cubagem_arvore_model.dart';
 import 'package:geoforestv1/providers/team_provider.dart';
 import 'package:geoforestv1/providers/license_provider.dart';
+import 'package:geoforestv1/providers/gerente_provider.dart'; // <--- ADICIONE ISTO
 import 'package:geoforestv1/data/repositories/parcela_repository.dart';
 import 'package:geoforestv1/data/repositories/cubagem_repository.dart';
 import 'package:geoforestv1/data/repositories/projeto_repository.dart';
@@ -1234,25 +1235,44 @@ class ExportService {
         content: Text('Buscando dados com base nos filtros...')));
 
     List<Parcela> parcelasParaExportar;
+
+    // --- NOVA LÓGICA DE SELEÇÃO INTELIGENTE (LAZY LOADING) ---
+    // Verifica se estamos tentando exportar o projeto que já está carregado na memória do Provider.
+    final gerenteProvider = Provider.of<GerenteProvider>(context, listen: false);
+    final projetoFiltradoId = filters.selectedProjetoIds.length == 1 
+        ? filters.selectedProjetoIds.first 
+        : null;
+
+    final bool isProjetoNaMemoria = projetoFiltradoId != null && 
+                                    gerenteProvider.projetoCarregadoId == projetoFiltradoId;
+
     if (filters.isBackup) {
-      parcelasParaExportar =
-          await _parcelaRepository.getTodasConcluidasParcelasFiltrado(
-        projetoIds: filters.selectedProjetoIds.isNotEmpty
-            ? filters.selectedProjetoIds
-            : null,
-        lideresNomes:
-            filters.selectedLideres.isNotEmpty ? filters.selectedLideres : null,
+      // Se for backup, busca tudo do banco (segurança)
+      parcelasParaExportar = await _parcelaRepository.getTodasConcluidasParcelasFiltrado(
+        projetoIds: filters.selectedProjetoIds.isNotEmpty ? filters.selectedProjetoIds : null,
+        lideresNomes: filters.selectedLideres.isNotEmpty ? filters.selectedLideres : null,
       );
     } else {
-      parcelasParaExportar =
-          await _parcelaRepository.getUnexportedConcludedParcelasFiltrado(
-        projetoIds: filters.selectedProjetoIds.isNotEmpty
-            ? filters.selectedProjetoIds
-            : null,
-        lideresNomes:
-            filters.selectedLideres.isNotEmpty ? filters.selectedLideres : null,
-      );
+      if (isProjetoNaMemoria) {
+         // Se o projeto já está carregado, usa a memória (RÁPIDO)
+         // Aplica filtro de líder e exportada em memória
+         parcelasParaExportar = gerenteProvider.parcelasSincronizadas.where((p) {
+            bool liderOk = filters.selectedLideres.isEmpty || filters.selectedLideres.contains(p.nomeLider ?? 'Gerente');
+            bool naoExportada = !p.exportada;
+            bool concluida = p.status == StatusParcela.concluida;
+            return liderOk && naoExportada && concluida;
+         }).toList();
+         debugPrint("Exportando ${parcelasParaExportar.length} parcelas da MEMÓRIA (Rápido).");
+      } else {
+         // Se não está na memória, busca do banco (LENTO MAS COMPLETO)
+         parcelasParaExportar = await _parcelaRepository.getUnexportedConcludedParcelasFiltrado(
+            projetoIds: filters.selectedProjetoIds.isNotEmpty ? filters.selectedProjetoIds : null,
+            lideresNomes: filters.selectedLideres.isNotEmpty ? filters.selectedLideres : null,
+         );
+         debugPrint("Exportando ${parcelasParaExportar.length} parcelas do BANCO SQLITE (Completo).");
+      }
     }
+    // ---------------------------------------------------------
 
     if (parcelasParaExportar.isEmpty && context.mounted) {
       ScaffoldMessenger.of(context).removeCurrentSnackBar();
@@ -1404,14 +1424,38 @@ class ExportService {
     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Buscando cubagens com base nos filtros...')));
 
-    final List<CubagemArvore> cubagensParaExportar =
-        await _cubagemRepository.getConcludedCubagensFiltrado(
-      projetoIds: filters.selectedProjetoIds.isNotEmpty
-          ? filters.selectedProjetoIds
-          : null,
-      lideresNomes:
-          filters.selectedLideres.isNotEmpty ? filters.selectedLideres : null,
-    );
+    List<CubagemArvore> cubagensParaExportar;
+    
+    // --- NOVA LÓGICA DE SELEÇÃO INTELIGENTE (LAZY LOADING) ---
+    final gerenteProvider = Provider.of<GerenteProvider>(context, listen: false);
+    final projetoFiltradoId = filters.selectedProjetoIds.length == 1 
+        ? filters.selectedProjetoIds.first 
+        : null;
+
+    final bool isProjetoNaMemoria = projetoFiltradoId != null && 
+                                    gerenteProvider.projetoCarregadoId == projetoFiltradoId;
+
+    if (!filters.isBackup && isProjetoNaMemoria) {
+         // Exportação normal (não backup) e projeto na memória -> Usa RAM
+         cubagensParaExportar = gerenteProvider.cubagensSincronizadas.where((c) {
+            bool liderOk = filters.selectedLideres.isEmpty || filters.selectedLideres.contains(c.nomeLider ?? 'Gerente');
+            bool naoExportada = !c.exportada;
+            bool concluida = c.alturaTotal > 0;
+            return liderOk && naoExportada && concluida;
+         }).toList();
+         debugPrint("Exportando ${cubagensParaExportar.length} cubagens da MEMÓRIA.");
+    } else {
+         // Backup ou projeto fechado -> Usa Banco
+         cubagensParaExportar = await _cubagemRepository.getConcludedCubagensFiltrado(
+          projetoIds: filters.selectedProjetoIds.isNotEmpty
+              ? filters.selectedProjetoIds
+              : null,
+          lideresNomes:
+              filters.selectedLideres.isNotEmpty ? filters.selectedLideres : null,
+        );
+        debugPrint("Exportando ${cubagensParaExportar.length} cubagens do BANCO SQLITE.");
+    }
+    // ---------------------------------------------------------
 
     if (cubagensParaExportar.isEmpty && context.mounted) {
       ScaffoldMessenger.of(context).removeCurrentSnackBar();

@@ -24,7 +24,7 @@ class _GerenteDashboardPageState extends State<GerenteDashboardPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<GerenteProvider>().iniciarMonitoramento();
+      context.read<GerenteProvider>().iniciarMonitoramentoEstrutural;
     });
   }
 
@@ -59,7 +59,7 @@ class _GerenteDashboardPageState extends State<GerenteDashboardPage> {
         final projetosDisponiveis = filterProvider.projetosDisponiveis.where((p) => p.status == 'ativo').toList();
 
         return RefreshIndicator(
-          onRefresh: () async => context.read<GerenteProvider>().iniciarMonitoramento(),
+          onRefresh: () async => context.read<GerenteProvider>().iniciarMonitoramentoEstrutural,
           child: ListView(
             padding: const EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0),
             children: [

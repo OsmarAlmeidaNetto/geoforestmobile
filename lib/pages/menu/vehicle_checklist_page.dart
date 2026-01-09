@@ -1,14 +1,15 @@
 // lib/pages/menu/vehicle_checklist_page.dart
 
+import 'dart:io'; // <<< ADICIONADO PARA USAR FILE
 import 'package:flutter/material.dart';
 import 'package:geoforestv1/data/repositories/vehicle_checklist_repository.dart';
 import 'package:geoforestv1/models/vehicle_checklist_model.dart';
 import 'package:geoforestv1/services/pdf_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
 
 class VehicleChecklistPage extends StatefulWidget {
-  // 1. Adicionar parâmetro opcional para edição
   final VehicleChecklist? checklistParaEditar;
 
   const VehicleChecklistPage({super.key, this.checklistParaEditar});
@@ -30,13 +31,17 @@ class _VehicleChecklistPageState extends State<VehicleChecklistPage> {
   
   final Map<String, String> _respostas = {};
 
+  // --- NOVAS VARIÁVEIS PARA FOTOS ---
+  List<String> _fotos = [];
+  final ImagePicker _picker = ImagePicker();
+  // ----------------------------------
+
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
     
-    // 2. Lógica de Preenchimento Automático
     if (widget.checklistParaEditar != null) {
       final c = widget.checklistParaEditar!;
       _placaController.text = c.placa ?? '';
@@ -53,6 +58,13 @@ class _VehicleChecklistPageState extends State<VehicleChecklistPage> {
       } else {
         _inicializarRespostasPadrao();
       }
+
+      // --- CARREGA FOTOS EXISTENTES ---
+      if (c.fotosAvarias.isNotEmpty) {
+        _fotos = List.from(c.fotosAvarias);
+      }
+      // --------------------------------
+
     } else {
       _inicializarRespostasPadrao();
     }
@@ -64,7 +76,6 @@ class _VehicleChecklistPageState extends State<VehicleChecklistPage> {
     }
   }
 
-  // ... (dispose e _selecionarVencimento iguais ao anterior) ...
   @override
   void dispose() {
     _placaController.dispose();
@@ -76,6 +87,26 @@ class _VehicleChecklistPageState extends State<VehicleChecklistPage> {
     _obsController.dispose();
     super.dispose();
   }
+
+  // --- NOVO MÉTODO: TIRAR FOTO ---
+  Future<void> _tirarFoto() async {
+    try {
+      final XFile? photo = await _picker.pickImage(
+        source: ImageSource.camera,
+        imageQuality: 50, // Qualidade média para não pesar no banco/PDF
+        maxWidth: 1024,
+      );
+      
+      if (photo != null) {
+        setState(() {
+          _fotos.add(photo.path);
+        });
+      }
+    } catch (e) {
+      debugPrint("Erro ao tirar foto: $e");
+    }
+  }
+  // -------------------------------
 
   Future<void> _selecionarVencimento(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -101,12 +132,11 @@ class _VehicleChecklistPageState extends State<VehicleChecklistPage> {
 
     try {
       final prefs = await SharedPreferences.getInstance();
-      // Se estiver editando, mantém o nome original, senão pega do prefs
       final nomeLider = widget.checklistParaEditar?.nomeMotorista ?? (prefs.getString('nome_lider') ?? 'Motorista');
 
       final checklist = VehicleChecklist(
-        id: widget.checklistParaEditar?.id, // 3. IMPORTANTE: Passar o ID para atualizar o existente
-        dataRegistro: widget.checklistParaEditar?.dataRegistro ?? DateTime.now(), // Mantém a data original
+        id: widget.checklistParaEditar?.id,
+        dataRegistro: widget.checklistParaEditar?.dataRegistro ?? DateTime.now(),
         nomeMotorista: nomeLider,
         isMotorista: true,
         placa: _placaController.text.toUpperCase(),
@@ -119,14 +149,20 @@ class _VehicleChecklistPageState extends State<VehicleChecklistPage> {
             : null, 
         observacoes: _obsController.text,
         itens: _respostas,
-        lastModified: DateTime.now(), // Atualiza a data de modificação
+        fotosAvarias: _fotos, // <<< AQUI: SALVA A LISTA DE FOTOS >>>
+        lastModified: DateTime.now(),
       );
 
       final repo = VehicleChecklistRepository();
-      await repo.insertChecklist(checklist); // insert com ConflictAlgorithm.replace vai atualizar
+      await repo.insertChecklist(checklist); 
 
       if (mounted) {
-        await PdfService().gerarChecklistVeicularPdf(context, checklist);
+        // TROQUE ISSO:
+        // await PdfService().gerarChecklistVeicularPdf(context, checklist);
+        
+        // POR ISSO:
+        await PdfService().gerarChecklistHtml(context, checklist);
+        
         Navigator.pop(context, true);
       }
 
@@ -139,11 +175,80 @@ class _VehicleChecklistPageState extends State<VehicleChecklistPage> {
     }
   }
 
-  // ... (método build e _buildRadio iguais ao anterior) ...
+  // --- NOVO WIDGET: SEÇÃO DE FOTOS ---
+  Widget _buildFotosSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Fotos de Avarias / Detalhes", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 10),
+        
+        // Lista de Miniaturas
+        if (_fotos.isNotEmpty)
+          SizedBox(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _fotos.length,
+              itemBuilder: (context, index) {
+                return Stack(
+                  children: [
+                    Container(
+                      margin: const EdgeInsets.only(right: 8),
+                      width: 100,
+                      height: 100,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey),
+                        image: DecorationImage(
+                          image: FileImage(File(_fotos[index])),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 0,
+                      right: 8,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _fotos.removeAt(index);
+                          });
+                        },
+                        child: const CircleAvatar(
+                          radius: 12,
+                          backgroundColor: Colors.red,
+                          child: Icon(Icons.close, size: 16, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ),
+        
+        const SizedBox(height: 10),
+        
+        // Botão Adicionar
+        OutlinedButton.icon(
+          onPressed: _tirarFoto,
+          icon: const Icon(Icons.camera_alt),
+          label: const Text("Adicionar Foto"),
+          style: OutlinedButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+          ),
+        ),
+        const Divider(height: 30, thickness: 2),
+      ],
+    );
+  }
+  // -----------------------------------
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.checklistParaEditar != null ? "Editar Checklist" : "Checklist Diário")), // Título dinâmico
+      appBar: AppBar(title: Text(widget.checklistParaEditar != null ? "Editar Checklist" : "Checklist Diário")),
       body: _isSaving 
         ? const Center(child: CircularProgressIndicator())
         : Form(
@@ -261,6 +366,11 @@ class _VehicleChecklistPageState extends State<VehicleChecklistPage> {
                 }),
 
                 const SizedBox(height: 20),
+                
+                // <<< AQUI INSERIMOS A SEÇÃO DE FOTOS >>>
+                _buildFotosSection(), 
+                // ----------------------------------------
+
                 TextFormField(
                   controller: _obsController,
                   maxLines: 3,

@@ -24,7 +24,8 @@ class InventarioImportStrategy extends BaseImportStrategy {
 
   // 2. Usa 'contains' para uma verificação flexível
   if (codTratado.contains('MULTIPLA')) return Codigo.Multipla;
-  if (codTratado.contains('BIFURCADA')) return Codigo.Bifurcada;
+  if (codTratado.contains('BIFURCADAACIMA')) return Codigo.BifurcadaAcima;
+  if (codTratado.contains('BIFURCADAABAIXO')) return Codigo.BifurcadaAbaixo;
   if (codTratado.contains('QUEBRADA')) return Codigo.Quebrada;
   if (codTratado.contains('MORTA') || codTratado.contains('SECA')) return Codigo.MortaOuSeca;
   if (codTratado.contains('CAIDA')) return Codigo.Caida;
@@ -41,9 +42,10 @@ class InventarioImportStrategy extends BaseImportStrategy {
     case 'F': return Codigo.Falha;
     case 'M': return Codigo.MortaOuSeca;
     case 'Q': return Codigo.Quebrada;
-    case 'B': return Codigo.Bifurcada;
+    case 'A': return Codigo.BifurcadaAcima;
+    case 'B': return Codigo.BifurcadaAbaixo;
     case 'C': return Codigo.Caida;
-    case 'A': return Codigo.AtaqueMacaco;
+    case 'AM': return Codigo.AtaqueMacaco;
     case 'R': return Codigo.Rebrota;
     case 'I': return Codigo.Inclinada;
     case 'NORMAL': return Codigo.Normal;
