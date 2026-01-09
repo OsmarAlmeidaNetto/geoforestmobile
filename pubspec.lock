@@ -737,7 +737,7 @@ packages:
     source: hosted
     version: "4.1.2"
   image:
-    dependency: "direct main"
+    dependency: transitive
     description:
       name: image
       sha256: "4e973fcf4caae1a4be2fa0a13157aa38a8f9cb049db6529aa00b4d71abc4d928"
@@ -952,6 +952,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "13.12.6"
+  native_exif:
+    dependency: "direct main"
+    description:
+      name: native_exif
+      sha256: "0d37444c1ed00cbcada69b7510aba1d505fed75d3b6ef3ea3c8c2c970040e4f1"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.6.2"
   nested:
     dependency: transitive
     description:

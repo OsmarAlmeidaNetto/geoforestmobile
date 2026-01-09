@@ -73,9 +73,11 @@ dependencies:
 
   # --- IMAGENS ---
   image_picker: ^1.1.2
-  image: ^4.5.4
   collection: ^1.19.1
   flutter_image_compress: ^2.3.0
+  native_exif: ^0.6.2
+  
+  
 
 dev_dependencies:
   flutter_test:

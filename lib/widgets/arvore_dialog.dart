@@ -4,7 +4,7 @@ import 'package:geoforestv1/models/especie_model.dart';
 import 'package:geoforestv1/data/repositories/especie_repository.dart';
 import 'package:geoforestv1/utils/image_utils.dart'; // Certifique-se de ter criado este arquivo
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
+
 
 class DialogResult {
   final Arvore arvore;
@@ -131,17 +131,20 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
     });
   }
 
+/// o outro é aqui?
   // FUNÇÃO DE CAPTURA DE FOTO COM MARCA D'ÁGUA
   // Localize a função _capturarFoto no seu arvore_dialog.dart e substitua por esta:
 Future<void> _capturarFoto() async {
+  // LIMPEZA PRÉ-CÂMERA (Essencial para não crashar)
+  PaintingBinding.instance.imageCache.clear();
+  PaintingBinding.instance.imageCache.clearLiveImages();
+
   final picker = ImagePicker();
-  
-  // 1. PRIMEIRA BARREIRA: Reduz a foto logo na captura (800 ou 1000 é o ideal)
   final XFile? photo = await picker.pickImage(
     source: ImageSource.camera, 
-    imageQuality: 50, 
-    maxWidth: 1000, 
-    maxHeight: 1000,   
+    imageQuality: 70, // Reduz o peso do arquivo no disco
+    maxWidth: 1200,   // Resolução excelente para EXIF e nítida para olho humano
+    maxHeight: 1200,   
   );
   
   if (photo == null) return;
@@ -149,42 +152,28 @@ Future<void> _capturarFoto() async {
   setState(() => _processandoFoto = true);
 
   try {
-    // 2. BUSCA DE DADOS (Garante que não enviamos strings vazias)
-    final linha = _linhaController.text.isEmpty ? "N/I" : _linhaController.text;
-    final pos = _posicaoController.text.isEmpty ? "N/I" : _posicaoController.text;
-    final especie = _especieController.text.isEmpty ? "Não informada" : _especieController.text;
+    final linha = _linhaController.text.isEmpty ? "0" : _linhaController.text;
+    final pos = _posicaoController.text.isEmpty ? "0" : _posicaoController.text;
 
-    final List<String> linhasDagua = [
-      "PROJETO: ${widget.projetoNome}",
-      "LOCAL: ${widget.fazendaNome} | ${widget.talhaoNome}",
-      "PARCELA: ${widget.idParcela} | L:$linha | P:$pos",
-      "ESPÉCIE: $especie",
-      "DATA: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}"
-    ];
+    // 1. Monta a String de dados para o EXIF
+    final String metadados = "Projeto: ${widget.projetoNome} | Fazenda: ${widget.fazendaNome} | Talhao: ${widget.talhaoNome} | Parcela: ${widget.idParcela} | L:$linha P:$pos";
 
-    final nomeArquivo = "TREE_L${linha}_P${pos}_${DateTime.now().millisecondsSinceEpoch}.jpg";
+    // 2. Monta o nome do arquivo (Hierarquia no nome para facilitar no Windows/Mac)
+    final nomeArquivo = "TREE_${widget.talhaoNome}_P${widget.idParcela}_L${linha}_P${pos}_${DateTime.now().millisecondsSinceEpoch}";
 
-    // 3. CHAMA O MOTOR NATIVO (Otimizado para não crashar)
-    // Este método vai comprimir, desenhar a tarja e salvar na Galeria
-    await ImageUtils.processarESalvarFoto(
+    // 3. Salva de forma ultra-leve
+    await ImageUtils.carimbarMetadadosESalvar(
       pathOriginal: photo.path,
-      linhasMarcaDagua: linhasDagua,
+      informacoesHierarquia: metadados,
       nomeArquivoFinal: nomeArquivo,
     );
 
-    // 4. ATUALIZA A LISTA LOCAL
-    // Mantemos o photo.path para exibição da miniatura na tela atual
     setState(() {
       _fotosArvore.add(photo.path);
     });
 
   } catch (e) {
-    debugPrint("Erro ao processar foto da árvore: $e");
-    if(mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Erro ao salvar foto: $e"), backgroundColor: Colors.red)
-      );
-    }
+    debugPrint("Erro: $e");
   } finally {
     if (mounted) setState(() => _processandoFoto = false);
   }
