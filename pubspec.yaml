@@ -76,6 +76,8 @@ dependencies:
   collection: ^1.19.1
   flutter_image_compress: ^2.3.0
   native_exif: ^0.6.2
+  printing: ^5.12.0
+  
   
   
 

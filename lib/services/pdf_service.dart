@@ -26,6 +26,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geoforestv1/models/vehicle_checklist_model.dart';
 import 'dart:convert';
+import 'package:share_plus/share_plus.dart';
+import 'package:printing/printing.dart'; // <--- NOVO IMPORT
+         // <--- IMPORTANTE
 
 class PdfService {
   final _analiseRepository = AnaliseRepository();
@@ -452,46 +455,44 @@ class PdfService {
     final nomeArquivo =
         'Plano_de_Cubagem_Regerado_${DateFormat('yyyy-MM-dd_HH-mm').format(hoje)}.pdf';
     await _salvarEAbriPdf(context, pdf, nomeArquivo);
-  }
+  } 
 
   Future<void> gerarChecklistHtml(BuildContext context, VehicleChecklist checklist) async {
     try {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gerando relatório HTML...')));
+      // 1. Verificação de Permissão
+      if (!await _requestPermission(context)) return;
 
-      // 1. Processar Imagens para Base64 (Texto)
-      // Isso incorpora a imagem dentro do HTML para não precisar enviar uma pasta de arquivos.
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Processando e gerando PDF...'),
+        duration: Duration(seconds: 2),
+      ));
+
+      // 2. Processar e Comprimir Imagens
       String htmlImagens = "";
-      
       if (checklist.fotosAvarias.isNotEmpty) {
-        htmlImagens += "<h3>Registro Fotográfico</h3><div class='gallery'>";
-        
+        htmlImagens += "<div class='break-before'><div class='section-title'>Registro Fotográfico</div><div class='gallery'>";
         for (String path in checklist.fotosAvarias) {
-          final File file = File(path);
-          if (await file.exists()) {
-            // Comprime antes de converter para Base64 para não travar
+          final File imgFile = File(path);
+          if (await imgFile.exists()) {
+            // Comprime para JPG leve
             final Uint8List? bytes = await FlutterImageCompress.compressWithFile(
-              file.absolute.path,
-              minWidth: 800,
-              minHeight: 800,
+              imgFile.absolute.path,
+              minWidth: 600,
+              minHeight: 600,
               quality: 50,
             );
 
             if (bytes != null) {
               final String base64Image = base64Encode(bytes);
-              htmlImagens += "<img src='data:image/jpeg;base64,$base64Image' class='photo' />";
+              htmlImagens += "<div class='photo-container'><img src='data:image/jpeg;base64,$base64Image' class='photo' /></div>";
             }
           }
         }
-        htmlImagens += "</div>";
+        htmlImagens += "</div></div>";
       }
 
-      // 2. Montar as linhas da tabela
+      // 3. Montar Linhas da Tabela
       String linhasTabela = "";
-      // checklistItensDescricao é a sua lista fixa de strings
-      // Importe ela ou copie a lista para cá se não estiver acessível
-      // Supondo que checklistItensDescricao esteja disponível globalmente ou passe como parâmetro
-      
-      // Lista manual caso não tenha acesso à variável global aqui
       const List<String> itensDescricao = [
         "1. Documentação do veículo", "2. Manual do veículo", "3. Ar condicionado",
         "4. Lataria", "5. Lanternas e faróis", "6. Luz Baixa", "7. Meia Luz",
@@ -508,15 +509,13 @@ class PdfService {
         final desc = itensDescricao[i];
         final status = checklist.itens[index] ?? '';
         
-        String checkC = status == 'C' ? '<b>X</b>' : '';
-        String checkNC = status == 'NC' ? '<b>X</b>' : '';
-        String checkNA = status == 'NA' ? '<b>X</b>' : '';
-
-        // Se a linha for par, cor cinza claro
-        String rowClass = i % 2 == 0 ? 'even' : 'odd';
+        String checkC = status == 'C' ? 'X' : '';
+        String checkNC = status == 'NC' ? 'X' : '';
+        String checkNA = status == 'NA' ? 'X' : '';
+        String bgClass = i % 2 == 0 ? 'bg-gray' : '';
 
         linhasTabela += """
-          <tr class='$rowClass'>
+          <tr class='$bgClass'>
             <td style='text-align:center'>$index</td>
             <td>$desc</td>
             <td style='text-align:center'>$checkC</td>
@@ -526,110 +525,118 @@ class PdfService {
         """;
       }
 
-      // 3. Montar o HTML Completo (CSS + Corpo)
+      // 4. HTML Completo
       String htmlContent = """
-      <!DOCTYPE html>
-      <html lang="pt-BR">
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <title>Checklist Veicular</title>
-        <style>
-          body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
-          h1 { color: #023853; border-bottom: 2px solid #023853; padding-bottom: 10px; }
-          .header-box { border: 1px solid #333; padding: 10px; margin-bottom: 15px; background-color: #f9f9f9; }
-          .row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-          th, td { border: 1px solid #ccc; padding: 6px; }
-          th { background-color: #023853; color: white; }
-          tr.even { background-color: #f2f2f2; }
-          .obs-box { border: 1px solid #333; padding: 10px; min-height: 50px; margin-top: 10px; }
-          .gallery { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-          .photo { width: 150px; height: 150px; object-fit: cover; border: 1px solid #ccc; padding: 2px; }
-          .signature-area { margin-top: 40px; display: flex; justify-content: space-around; }
-          .sign-line { border-top: 1px solid #000; width: 40%; text-align: center; padding-top: 5px; }
-        </style>
-      </head>
-      <body>
-        <h1>CHECK LIST DE VEÍCULOS</h1>
-        
-        <div class="header-box">
-          <div class="row">
-            <strong>Motorista: ${checklist.nomeMotorista}</strong>
-            <span>CNH: ${checklist.categoriaCnh ?? ''}</span>
-            <span>Venc: ${checklist.vencimentoCnh != null ? DateFormat('dd/MM/yyyy').format(checklist.vencimentoCnh!) : ''}</span>
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: sans-serif; font-size: 10px; margin: 0; padding: 15px; color: #333; }
+            .header { border: 1px solid #ccc; padding: 10px; background-color: #f8f8f8; margin-bottom: 15px; }
+            h1 { color: #023853; border-bottom: 2px solid #023853; margin-bottom: 10px; font-size: 18px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+            th { background-color: #023853; color: #fff; padding: 5px; border: 1px solid #999; font-size: 9px; }
+            td { border: 1px solid #ccc; padding: 4px; }
+            .bg-gray { background-color: #f0f0f0; }
+            .obs { border: 1px solid #ccc; padding: 8px; min-height: 30px; margin-bottom: 15px; }
+            .gallery { display: flex; flex-wrap: wrap; gap: 5px; }
+            .photo-container { width: 150px; height: 150px; border: 1px solid #ccc; overflow: hidden; background: #fff; }
+            .photo { width: 100%; height: 100%; object-fit: cover; }
+            .signatures { margin-top: 40px; display: flex; justify-content: space-around; }
+            .sign-line { width: 40%; border-top: 1px solid #000; text-align: center; padding-top: 5px; font-size: 10px;}
+            .break-before { page-break-before: always; }
+          </style>
+        </head>
+        <body>
+          <h1>CHECK LIST DE VEÍCULOS</h1>
+          
+          <div class="header">
+            <div><b>Motorista:</b> ${checklist.nomeMotorista} | <b>CNH:</b> ${checklist.categoriaCnh ?? '-'}</div>
+            <div style="margin-top:5px"><b>Veículo:</b> ${checklist.modeloVeiculo ?? '-'} | <b>Placa:</b> ${checklist.placa ?? '-'} | <b>KM:</b> ${checklist.kmAtual?.toStringAsFixed(0) ?? '-'}</div>
+            <div style="margin-top:5px; font-size:9px; text-align: right;">Data: ${DateFormat('dd/MM/yyyy HH:mm').format(checklist.dataRegistro)}</div>
           </div>
-          <hr style="border: 0; border-top: 1px solid #ccc;">
-          <div class="row">
-             <span>Placa: <strong>${checklist.placa ?? ''}</strong></span>
-             <span>KM: <strong>${checklist.kmAtual?.toStringAsFixed(0) ?? ''}</strong></span>
-             <span>Veículo: ${checklist.modeloVeiculo ?? ''}</span>
-             <span>Prefixo: ${checklist.prefixo ?? ''}</span>
+
+          <table>
+            <thead><tr><th width="30">Item</th><th>Descrição</th><th width="25">C</th><th width="25">NC</th><th width="25">NA</th></tr></thead>
+            <tbody>$linhasTabela</tbody>
+          </table>
+
+          <h4>Observações</h4>
+          <div class="obs">${checklist.observacoes ?? 'Sem observações.'}</div>
+
+          $htmlImagens
+
+          <div class="signatures">
+            <div class="sign-line">Assinatura do Motorista</div>
+            <div class="sign-line">Responsável da Empresa</div>
           </div>
-          <div style="text-align: right; margin-top: 5px; color: #666;">
-            Data: ${DateFormat('dd/MM/yyyy HH:mm').format(checklist.dataRegistro)}
-          </div>
-        </div>
-
-        <table>
-          <thead>
-            <tr>
-              <th width="5%">N.</th>
-              <th>Descrição</th>
-              <th width="8%">C</th>
-              <th width="8%">N.C</th>
-              <th width="8%">N.A</th>
-            </tr>
-          </thead>
-          <tbody>
-            $linhasTabela
-          </tbody>
-        </table>
-
-        <div class="obs-box">
-          <strong>Observações:</strong><br>
-          ${checklist.observacoes ?? 'Sem observações.'}
-        </div>
-
-        $htmlImagens
-
-        <div class="signature-area">
-          <div class="sign-line">Assinatura do Motorista</div>
-          <div class="sign-line">Responsável da Empresa</div>
-        </div>
-      </body>
-      </html>
+        </body>
+        </html>
       """;
 
-      // 4. Salvar arquivo
+      // 5. CONVERSÃO (Printing)
+      final Uint8List pdfBytes = await Printing.convertHtml(
+        html: htmlContent,
+        format: PdfPageFormat.a4,        
+      );
+
+      // 6. Salvar Arquivo
       final downloadsDirectory = await _getDownloadsDirectory(context);
       if (downloadsDirectory == null) return;
-
+      
       final relatoriosDir = Directory('${downloadsDirectory.path}/GeoForest/Relatorios');
       if (!await relatoriosDir.exists()) {
         await relatoriosDir.create(recursive: true);
       }
 
-      final nomeArquivo = 'Checklist_${DateFormat('yyyyMMdd_HHmm').format(checklist.dataRegistro)}.html';
+      final nomeArquivo = 'Checklist_${checklist.placa?.replaceAll(' ', '') ?? 'Auto'}_${DateFormat('yyyyMMdd_HHmm').format(checklist.dataRegistro)}.pdf';
       final file = File('${relatoriosDir.path}/$nomeArquivo');
       
-      await file.writeAsString(htmlContent);
+      await file.writeAsBytes(pdfBytes);
 
+      // 7. Sucesso!
       if (context.mounted) {
         ScaffoldMessenger.of(context).removeCurrentSnackBar();
         
-        // Abre o arquivo (Vai abrir no Chrome do celular ou navegador padrão)
-        await OpenFile.open(file.path);
+        showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text("PDF Gerado com Sucesso"),
+            content: Text("O relatório PDF foi salvo.\n\nO que deseja fazer?"),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  OpenFile.open(file.path);
+                },
+                child: const Text("Visualizar"),
+              ),
+              FilledButton.icon(
+                icon: const Icon(Icons.share),
+                label: const Text("Compartilhar PDF"),
+                onPressed: () async {
+                  Navigator.pop(ctx);
+                  await Share.shareXFiles(
+                    [XFile(file.path)], 
+                    text: 'Checklist Veicular PDF - ${checklist.placa}'
+                  );
+                },
+              ),
+            ],
+          ),
+        );
       }
 
     } catch (e) {
-      debugPrint("Erro ao gerar HTML: $e");
+      debugPrint("Erro ao gerar PDF (Printing): $e");
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Erro: $e'),
+          backgroundColor: Colors.red,
+        ));
       }
     }
   }
-
   
   Future<void> gerarRelatorioSimulacaoPdf({
     required BuildContext context,
