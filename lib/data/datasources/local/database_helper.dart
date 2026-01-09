@@ -31,7 +31,7 @@ class DatabaseHelper {
   Future<Database> _initDatabase() async {
     return await openDatabase(
       join(await getDatabasesPath(), 'geoforestv1.db'),
-      version: 60, // Mantemos a versão 60
+      version: 62, // Mantemos a versão 62
       onConfigure: _onConfigure,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -112,6 +112,7 @@ class DatabaseHelper {
         ${DbParcelas.id} INTEGER PRIMARY KEY AUTOINCREMENT,
         ${DbParcelas.uuid} TEXT NOT NULL UNIQUE,
         ${DbParcelas.talhaoId} INTEGER,
+        ${DbParcelas.atividadeTipo} TEXT,
         ${DbParcelas.nomeFazenda} TEXT,
         ${DbParcelas.nomeTalhao} TEXT,
         ${DbParcelas.idParcela} TEXT NOT NULL,
@@ -162,6 +163,7 @@ class DatabaseHelper {
         ${DbArvores.codigo3} TEXT,
         especie TEXT, 
         ${DbArvores.tora} TEXT,
+        ${DbArvores.photoPaths} TEXT
         ${DbArvores.observacao} TEXT,
         ${DbArvores.capAuditoria} REAL,
         ${DbArvores.alturaAuditoria} REAL,
@@ -584,7 +586,7 @@ class DatabaseHelper {
           break;
            case 60:
           // AQUI É A CHAVE: Forçamos a criação mesmo se já tiver tentado antes
-          debugPrint(">>> EXECUTANDO MIGRAÇÃO V60 (ESPECIES) <<<");
+          debugPrint(">>> EXECUTANDO MIGRAÇÃO V62 (ESPECIES) <<<");
 
           // 1. Limpa se já existir (para evitar erros em testes repetidos)
           await db.execute('DROP TABLE IF EXISTS especies');
@@ -613,6 +615,28 @@ class DatabaseHelper {
           // 4. Popula
           await _popularTabelaEspecies(db);
           break;
+        case 61:
+          debugPrint(">>> EXECUTANDO MIGRAÇÃO V61 (Adicionando atividadeTipo em parcelas) <<<");
+          // Verifica se a coluna já existe antes de tentar adicionar (medida de segurança)
+          if (!await _columnExists(db, DbParcelas.tableName, DbParcelas.atividadeTipo)) {
+            try {
+              await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.atividadeTipo} TEXT');
+              debugPrint("Coluna atividadeTipo adicionada com sucesso.");
+            } catch (e) {
+              debugPrint("Erro ao adicionar coluna atividadeTipo: $e");
+            }
+          }
+          break;
+        case 62:
+          debugPrint(">>> EXECUTANDO MIGRAÇÃO V62 (Adicionando fotos na árvore) <<<");
+          if (!await _columnExists(db, DbArvores.tableName, DbArvores.photoPaths)) {
+            try {
+              await db.execute('ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.photoPaths} TEXT');
+            } catch (e) {
+              debugPrint("Erro ao adicionar coluna photoPaths: $e");
+            }
+          }
+          break;        
       }
     }
   }

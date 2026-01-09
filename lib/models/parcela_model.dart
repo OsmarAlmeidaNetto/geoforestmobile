@@ -98,7 +98,7 @@ class Parcela {
 
   Map<String, dynamic> toMap() {
     return {
-      DbParcelas.id: dbId, DbParcelas.uuid: uuid, DbParcelas.talhaoId: talhaoId, 
+      DbParcelas.id: dbId, DbParcelas.uuid: uuid, DbParcelas.talhaoId: talhaoId,DbParcelas.atividadeTipo: atividadeTipo, 
       DbParcelas.idFazenda: idFazenda, DbParcelas.nomeFazenda: nomeFazenda, 
       DbParcelas.nomeTalhao: nomeTalhao, DbParcelas.idParcela: idParcela,
       DbParcelas.areaMetrosQuadrados: areaMetrosQuadrados, DbParcelas.observacao: observacao,
@@ -121,73 +121,79 @@ class Parcela {
   }
 
   factory Parcela.fromMap(Map<String, dynamic> map) {
-    DateTime? parseDate(dynamic value) {
-      if (value is Timestamp) return value.toDate();
-      if (value is String) return DateTime.tryParse(value);
-      return null;
-    }
-
-    List<Arvore> listaArvores = [];
-    if (map['arvores'] != null) {
-      if (map['arvores'] is String) {
-        // Se vier do SQLite (Texto)
-        final List<dynamic> decoded = jsonDecode(map['arvores']);
-        listaArvores = decoded.map((item) => Arvore.fromMap(item)).toList();
-      } else if (map['arvores'] is List) {
-        // Se vier do Firebase (Lista de Mapas)
-        listaArvores = (map['arvores'] as List)
-            .map((item) => Arvore.fromMap(Map<String, dynamic>.from(item)))
-            .toList();
-      }
-    }  
-
-    List<String> paths = [];
-    if (map[DbParcelas.photoPaths] != null) {
-      try {
-        paths = List<String>.from(jsonDecode(map[DbParcelas.photoPaths]));
-      } catch (e) {
-        debugPrint("Erro ao decodificar photoPaths: $e");
-      }
-    }
-    
-    return Parcela(
-      dbId: map[DbParcelas.id],
-      uuid: map[DbParcelas.uuid] ?? const Uuid().v4(),
-      talhaoId: map[DbParcelas.talhaoId],
-      idFazenda: map[DbParcelas.idFazenda],
-      nomeFazenda: map[DbParcelas.nomeFazenda],
-      nomeTalhao: map[DbParcelas.nomeTalhao],
-      idParcela: map[DbParcelas.idParcela] ?? 'ID_N/A',
-      areaMetrosQuadrados: (map[DbParcelas.areaMetrosQuadrados] as num?)?.toDouble() ?? 0.0,
-      observacao: map[DbParcelas.observacao],
-      latitude: (map[DbParcelas.latitude] as num?)?.toDouble(),
-      longitude: (map[DbParcelas.longitude] as num?)?.toDouble(),
-      altitude: (map[DbParcelas.altitude] as num?)?.toDouble(),
-      dataColeta: parseDate(map[DbParcelas.dataColeta]),
-      arvores: listaArvores,
-      
-      // >>> CORREÇÃO 2: Leitura insensível a maiúsculas/minúsculas <<<
-      status: StatusParcela.values.firstWhere(
-        (e) => e.name.toLowerCase() == map[DbParcelas.status]?.toString().toLowerCase(),
-        orElse: () => StatusParcela.pendente
-      ),
-      
-      exportada: map[DbParcelas.exportada] == 1,
-      isSynced: map[DbParcelas.isSynced] == 1,
-      nomeLider: map[DbParcelas.nomeLider],
-      projetoId: map[DbParcelas.projetoId],
-      atividadeTipo: map['atividadeTipo'],
-      up: map[DbParcelas.up],
-      referenciaRf: map[DbParcelas.referenciaRf],
-      ciclo: map[DbParcelas.ciclo]?.toString(),
-      rotacao: int.tryParse(map[DbParcelas.rotacao]?.toString() ?? ''),
-      tipoParcela: map[DbParcelas.tipoParcela],
-      formaParcela: map[DbParcelas.formaParcela],
-      lado1: (map[DbParcelas.lado1] as num?)?.toDouble(),
-      lado2: (map[DbParcelas.lado2] as num?)?.toDouble(),
-      declividade: (map[DbParcelas.declividade] as num?)?.toDouble(),
-      photoPaths: paths,
-      lastModified: parseDate(map[DbParcelas.lastModified]),
-    );
+  DateTime? parseDate(dynamic value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is String) return DateTime.tryParse(value);
+    return null;
   }
+
+  List<Arvore> listaArvores = [];
+  if (map['arvores'] != null) {
+    if (map['arvores'] is String) {
+      // Se vier do SQLite (Texto JSON)
+      final List<dynamic> decoded = jsonDecode(map['arvores']);
+      listaArvores = decoded.map((item) => Arvore.fromMap(item)).toList();
+    } else if (map['arvores'] is List) {
+      // Se vier do Firebase (Lista de Mapas)
+      listaArvores = (map['arvores'] as List)
+          .map((item) => Arvore.fromMap(Map<String, dynamic>.from(item)))
+          .toList();
+    }
+  }  
+
+  List<String> paths = [];
+  if (map[DbParcelas.photoPaths] != null) {
+    try {
+      paths = List<String>.from(jsonDecode(map[DbParcelas.photoPaths]));
+    } catch (e) {
+      debugPrint("Erro ao decodificar photoPaths: $e");
+    }
+  }
+  
+  return Parcela(
+    dbId: map[DbParcelas.id],
+    uuid: map[DbParcelas.uuid] ?? const Uuid().v4(),
+    talhaoId: map[DbParcelas.talhaoId],
+    idFazenda: map[DbParcelas.idFazenda],
+    nomeFazenda: map[DbParcelas.nomeFazenda],
+    nomeTalhao: map[DbParcelas.nomeTalhao],
+    idParcela: map[DbParcelas.idParcela] ?? 'ID_N/A',
+    areaMetrosQuadrados: (map[DbParcelas.areaMetrosQuadrados] as num?)?.toDouble() ?? 0.0,
+    observacao: map[DbParcelas.observacao],
+    latitude: (map[DbParcelas.latitude] as num?)?.toDouble(),
+    longitude: (map[DbParcelas.longitude] as num?)?.toDouble(),
+    altitude: (map[DbParcelas.altitude] as num?)?.toDouble(),
+    dataColeta: parseDate(map[DbParcelas.dataColeta]),
+    arvores: listaArvores,
+    
+    // --- LÓGICA DE STATUS ---
+    status: StatusParcela.values.firstWhere(
+      (e) => e.name.toLowerCase() == map[DbParcelas.status]?.toString().toLowerCase(),
+      orElse: () => StatusParcela.pendente
+    ),
+    
+    exportada: map[DbParcelas.exportada] == 1,
+    isSynced: map[DbParcelas.isSynced] == 1,
+    nomeLider: map[DbParcelas.nomeLider],
+    projetoId: map[DbParcelas.projetoId],
+
+    // ============================================================
+    // AQUI ESTÁ A CORREÇÃO: Lendo a nova coluna do banco de dados
+    // ============================================================
+    atividadeTipo: map[DbParcelas.atividadeTipo], 
+    // ============================================================
+
+    up: map[DbParcelas.up],
+    referenciaRf: map[DbParcelas.referenciaRf],
+    ciclo: map[DbParcelas.ciclo]?.toString(),
+    rotacao: int.tryParse(map[DbParcelas.rotacao]?.toString() ?? ''),
+    tipoParcela: map[DbParcelas.tipoParcela],
+    formaParcela: map[DbParcelas.formaParcela],
+    lado1: (map[DbParcelas.lado1] as num?)?.toDouble(),
+    lado2: (map[DbParcelas.lado2] as num?)?.toDouble(),
+    declividade: (map[DbParcelas.declividade] as num?)?.toDouble(),
+    photoPaths: paths,
+    lastModified: parseDate(map[DbParcelas.lastModified]),
+  );
+}
 }

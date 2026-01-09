@@ -1,9 +1,11 @@
-// lib/widgets/arvore_dialog.dart
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geoforestv1/models/arvore_model.dart';
 import 'package:geoforestv1/models/especie_model.dart';
 import 'package:geoforestv1/data/repositories/especie_repository.dart';
+import 'package:geoforestv1/utils/image_utils.dart'; // Certifique-se de ter criado este arquivo
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 
 class DialogResult {
   final Arvore arvore;
@@ -26,7 +28,13 @@ class ArvoreDialog extends StatefulWidget {
   final int linhaAtual;
   final int posicaoNaLinhaAtual;
   final bool isAdicionandoFuste;
-  final bool isBio; // Recebe se é BIO
+  final bool isBio;
+  
+  // Informações para a Marca D'água da Foto
+  final String projetoNome;
+  final String fazendaNome;
+  final String talhaoNome;
+  final String idParcela;
 
   const ArvoreDialog({
     super.key,
@@ -34,7 +42,11 @@ class ArvoreDialog extends StatefulWidget {
     required this.linhaAtual,
     required this.posicaoNaLinhaAtual,
     this.isAdicionandoFuste = false,
-    this.isBio = false, // Padrão é false
+    this.isBio = false,
+    required this.projetoNome,
+    required this.fazendaNome,
+    required this.talhaoNome,
+    required this.idParcela,
   });
 
   bool get isEditing => arvoreParaEditar != null && !isAdicionandoFuste;
@@ -46,7 +58,6 @@ class ArvoreDialog extends StatefulWidget {
 class _ArvoreDialogState extends State<ArvoreDialog> {
   final _formKey = GlobalKey<FormState>();
   
-  // Controllers
   final _capController = TextEditingController();
   final _alturaController = TextEditingController();
   final _linhaController = TextEditingController();
@@ -61,6 +72,10 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
   bool _fimDeLinha = false;
   bool _camposHabilitados = true;
   bool _isInMultiplaFlow = false;
+  
+  // Lista para armazenar os caminhos das fotos tiradas NESTE diálogo
+  List<String> _fotosArvore = [];
+  bool _processandoFoto = false;
 
   final _codesRequiringAlturaDano = [
     Codigo.Bifurcada, Codigo.Multipla, Codigo.Quebrada,
@@ -79,15 +94,13 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
       _capController.text = (arvore.cap > 0) ? arvore.cap.toString().replaceAll('.', ',') : '';
       _alturaController.text = arvore.altura?.toString().replaceAll('.', ',') ?? '';
       _alturaDanoController.text = arvore.alturaDano?.toString().replaceAll('.', ',') ?? '';
-      
-      // Carrega a espécie
       _especieController.text = arvore.especie ?? '';
-
       _codigo = arvore.codigo;
       _codigo2 = arvore.codigo2;
       _fimDeLinha = arvore.fimDeLinha;
       _linhaController.text = arvore.linha.toString();
       _posicaoController.text = arvore.posicaoNaLinha.toString();
+      _fotosArvore = List.from(arvore.photoPaths); // Carrega fotos existentes
     } else {
       _codigo = Codigo.Normal;
       _linhaController.text = widget.linhaAtual.toString();
@@ -111,15 +124,61 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
         _capController.text = '0';
         _alturaController.clear();
         _alturaDanoController.clear();
-        // Limpa espécie se não for edição
         if (!widget.isEditing) _especieController.clear();
       } else {
         _camposHabilitados = true;
-        if (_capController.text == '0') {
-          _capController.clear();
-        }
+        if (_capController.text == '0') _capController.clear();
       }
     });
+  }
+
+  // FUNÇÃO DE CAPTURA DE FOTO COM MARCA D'ÁGUA
+  Future<void> _capturarFoto() async {
+    final picker = ImagePicker();
+    
+    // Pick image com limites de memória
+    final XFile? photo = await picker.pickImage(
+      source: ImageSource.camera, 
+      imageQuality: 50, 
+      maxWidth: 1200,   
+    );
+    
+    if (photo == null) return;
+
+    // LIGA O CARREGANDO (Bloqueia a UI para não clicar duas vezes)
+    setState(() => _processandoFoto = true);
+
+    try {
+      final linhas = [
+        "Projeto: ${widget.projetoNome}",
+        "Fazenda: ${widget.fazendaNome} | Talhão: ${widget.talhaoNome}",
+        "Parcela: ${widget.idParcela} | Linha: ${_linhaController.text} | Pos: ${_posicaoController.text}",
+        "Espécie: ${_especieController.text}",
+        "Data: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}"
+      ];
+
+      final nomeArquivo = "TREE_L${_linhaController.text}_P${_posicaoController.text}_${DateTime.now().millisecondsSinceEpoch}.jpg";
+
+      // CHAMA O PROCESSAMENTO PESADO
+      await ImageUtils.processarESalvarFoto(
+        pathOriginal: photo.path,
+        linhasMarcaDagua: linhas,
+        nomeArquivoFinal: nomeArquivo,
+      );
+
+      if (mounted) {
+        setState(() {
+          _fotosArvore.add(photo.path);
+        });
+      }
+    } catch (e) {
+      debugPrint("Erro ao processar foto: $e");
+    } finally {
+      // DESLIGA O CARREGANDO
+      if (mounted) {
+        setState(() => _processandoFoto = false);
+      }
+    }
   }
 
   @override
@@ -135,26 +194,16 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
 
   void _submit({bool proxima = false, bool mesmoFuste = false, bool atualizarEProximo = false, bool atualizarEAnterior = false}) {
     if (_formKey.currentState!.validate()) {
-      
-      // --- VALIDAÇÃO EXTRA PARA BIO ---
       if (widget.isBio && _camposHabilitados) {
         if (_especieController.text.trim().isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Para atividade BIO, a Espécie é obrigatória.'),
-            backgroundColor: Colors.red,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Espécie é obrigatória.'), backgroundColor: Colors.red));
           return;
         }
-        // Validação de altura para BIO (se não tiver sido pega pelo validator do campo)
         if (_alturaController.text.isEmpty) {
-           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Para atividade BIO, a Altura é obrigatória.'),
-            backgroundColor: Colors.red,
-          ));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Altura é obrigatória.'), backgroundColor: Colors.red));
           return;
         }
       }
-      // --------------------------------
 
       final double cap = double.tryParse(_capController.text.replaceAll(',', '.')) ?? 0.0;
       final double? altura = _alturaController.text.isNotEmpty ? double.tryParse(_alturaController.text.replaceAll(',', '.')) : null;
@@ -167,16 +216,15 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
         cap: cap,
         altura: altura,
         alturaDano: alturaDano,
-        // SALVA A ESPÉCIE SE FOR BIO
-        especie: widget.isBio ? _especieController.text.trim() : null, 
+        especie: _especieController.text.trim(), 
         linha: linha,
         posicaoNaLinha: posicao,
         codigo: _codigo,
         codigo2: _codigo == Codigo.Normal ? null : _codigo2,
         fimDeLinha: _fimDeLinha,
         dominante: widget.arvoreParaEditar?.dominante ?? false,
-        capAuditoria: widget.arvoreParaEditar?.capAuditoria,
-        alturaAuditoria: widget.arvoreParaEditar?.alturaAuditoria,
+        photoPaths: _fotosArvore, // <--- SALVA AS FOTOS NO OBJETO
+        lastModified: DateTime.now(),
       );
 
       Navigator.of(context).pop(DialogResult(
@@ -214,7 +262,10 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
               if (widget.isBio)
                 Padding(
                   padding: const EdgeInsets.only(top: 4.0),
-                  child: Text("Inventário BIO (Nativa)", textAlign: TextAlign.center, style: TextStyle(color: Colors.green[700], fontSize: 12, fontWeight: FontWeight.bold)),
+                  child: Text("Inventário BIO (Nativa)", 
+                    textAlign: TextAlign.center, 
+                    style: TextStyle(color: Colors.green[700], fontSize: 12, fontWeight: FontWeight.bold)
+                  ),
                 ),
               const SizedBox(height: 20),
               Form(
@@ -223,47 +274,37 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- LINHA E POSIÇÃO ---
                     Row(
                       children: [
                         Expanded(
                           child: TextFormField(
                             controller: _linhaController,
-                            enabled: true,
                             decoration: const InputDecoration(labelText: 'Linha'),
                             keyboardType: TextInputType.number,
                             textAlign: TextAlign.center,
-                            validator: (v) => (v == null || v.isEmpty || int.tryParse(v) == null) ? 'Inválido' : null,
+                            validator: (v) => (v == null || v.isEmpty) ? 'Inválido' : null,
                           ),
                         ),
                         const SizedBox(width: 24),
                         Expanded(
                           child: TextFormField(
                             controller: _posicaoController,
-                            enabled: true,
                             decoration: const InputDecoration(labelText: 'Posição'),
                             keyboardType: TextInputType.number,
                             textAlign: TextAlign.center,
-                            validator: (v) => (v == null || v.isEmpty || int.tryParse(v) == null) ? 'Inválido' : null,
+                            validator: (v) => (v == null || v.isEmpty) ? 'Inválido' : null,
                           ),
                         ),
                       ],
                     ),
                     const SizedBox(height: 16),
-                    
-                    // --- CÓDIGOS ---
                     DropdownButtonFormField<Codigo>(
                       value: _codigo,
                       decoration: const InputDecoration(labelText: 'Código 1'),
                       items: Codigo.values.map((s) => DropdownMenuItem(value: s, child: Text(s.name))).toList(),
                       onChanged: (value) {
                         if (value != null) {
-                          setState(() {
-                            _codigo = value;
-                            if (value == Codigo.Normal) {
-                              _codigo2 = null;
-                            }
-                          });
+                          setState(() => _codigo = value);
                           _atualizarEstadoCampos();
                           _checkMultiplaFlow();
                         }
@@ -285,93 +326,45 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                     ),
                     const SizedBox(height: 16),
 
-                    // --- [BIO] AUTOCOMPLETE DE ESPÉCIE ---
-                    // Esta parte estava faltando no seu código.
                     if (widget.isBio && _camposHabilitados)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 16.0),
-                        child: LayoutBuilder(builder: (context, constraints) {
-                          return Autocomplete<Especie>(
-                            optionsBuilder: (TextEditingValue textEditingValue) async {
-                              if (textEditingValue.text.length < 2) {
-                                return const Iterable<Especie>.empty();
-                              }
-                              // Chama o repositório que busca no banco local
-                              return await _especieRepository.buscarPorNome(textEditingValue.text);
-                            },
-                            displayStringForOption: (Especie option) => option.nomeComum,
-                            onSelected: (Especie selection) {
-                              // Salva a seleção no controller
-                              _especieController.text = selection.nomeComum; 
-                            },
-                            fieldViewBuilder: (context, controller, focusNode, onEditingComplete) {
-                              // Mantém o texto sincronizado caso seja edição
-                              if (_especieController.text.isNotEmpty && controller.text.isEmpty) {
-                                controller.text = _especieController.text;
-                              }
-                              // Ouve mudanças manuais
-                              controller.addListener(() {
-                                _especieController.text = controller.text;
-                              });
-                              
-                              return TextFormField(
-                                controller: controller,
-                                focusNode: focusNode,
-                                onEditingComplete: onEditingComplete,
-                                decoration: const InputDecoration(
-                                  labelText: 'Espécie *',
-                                  border: OutlineInputBorder(),
-                                  prefixIcon: Icon(Icons.spa, color: Colors.green),
-                                  suffixIcon: Icon(Icons.search),
-                                  helperText: 'Digite para buscar na lista',
-                                ),
-                                validator: (v) {
-                                  if (widget.isBio && (v == null || v.isEmpty)) return 'Obrigatório';
-                                  return null;
-                                },
-                              );
-                            },
+                      Autocomplete<Especie>(
+                        optionsBuilder: (textValue) async {
+                          if (textValue.text.length < 2) return const Iterable<Especie>.empty();
+                          return await _especieRepository.buscarPorNome(textValue.text);
+                        },
+                        displayStringForOption: (Especie o) => o.nomeComum,
+                        onSelected: (selection) => _especieController.text = selection.nomeComum,
+                        fieldViewBuilder: (ctx, ctrl, node, onComplete) {
+                          if (_especieController.text.isNotEmpty && ctrl.text.isEmpty) ctrl.text = _especieController.text;
+                          ctrl.addListener(() => _especieController.text = ctrl.text);
+                          return TextFormField(
+                            controller: ctrl,
+                            focusNode: node,
+                            onEditingComplete: onComplete,
+                            decoration: const InputDecoration(
+                              labelText: 'Espécie *', 
+                              prefixIcon: Icon(Icons.spa, color: Colors.green)
+                            ),
+                            validator: (v) => (widget.isBio && (v == null || v.isEmpty)) ? 'Obrigatório' : null,
                           );
-                        }),
+                        },
                       ),
 
-                    // --- CAP ---
+                    const SizedBox(height: 16),
                     TextFormField(
                       controller: _capController,
                       enabled: _camposHabilitados,
                       decoration: const InputDecoration(labelText: 'CAP (cm)'),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: (value) {
-                        if (_camposHabilitados && (value == null || value.isEmpty)) {
-                          return 'Campo obrigatório';
-                        }
-                        if (value != null && value.isNotEmpty && double.tryParse(value.replaceAll(',', '.')) == null) {
-                          return 'Número inválido';
-                        }
-                        return null;
-                      },
+                      validator: (v) => (_camposHabilitados && (v == null || v.isEmpty)) ? 'Obrigatório' : null,
                     ),
                     const SizedBox(height: 16),
-
-                    // --- ALTURA (COM VALIDAÇÃO CONDICIONAL) ---
                     TextFormField(
                       controller: _alturaController,
                       enabled: _camposHabilitados,
-                      // Muda o rótulo visualmente se for BIO
-                      decoration: InputDecoration(
-                        labelText: widget.isBio ? 'Altura Total (m) *' : 'Altura Total (m) - Opcional',
-                        border: const OutlineInputBorder(),
-                      ),
+                      decoration: InputDecoration(labelText: widget.isBio ? 'Altura Total (m) *' : 'Altura Total (m) - Opcional'),
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      validator: (value) {
-                        // Regra de validação para BIO
-                        if (widget.isBio && _camposHabilitados) {
-                          if (value == null || value.isEmpty) {
-                            return 'Altura é obrigatória em BIO';
-                          }
-                        }
-                        return null;
-                      },
+                      validator: (v) => (widget.isBio && _camposHabilitados && (v == null || v.isEmpty)) ? 'Obrigatório em BIO' : null,
                     ),
 
                     if (showAlturaDano)
@@ -385,22 +378,50 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                         ),
                       ),
 
-                    if (!widget.isEditing && !_isInMultiplaFlow)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 8.0),
-                        child: SwitchListTile(
-                          title: const Text('Fim da linha de plantio?'),
-                          value: _fimDeLinha,
-                          onChanged: (value) => setState(() => _fimDeLinha = value),
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
+                    const SizedBox(height: 16),
+
+                    // SEÇÃO DE FOTO E FIM DE LINHA
+                    Row(
+                      children: [
+                        // LÓGICA DE CARREGAMENTO NO BOTÃO DE FOTO
+                        _processandoFoto 
+                          ? const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 10),
+                              child: SizedBox(
+                                width: 30, 
+                                height: 30, 
+                                child: CircularProgressIndicator(strokeWidth: 3)
+                              ),
+                            )
+                          : IconButton(
+                              onPressed: _capturarFoto,
+                              icon: const Icon(Icons.camera_alt, color: Color(0xFF023853), size: 40),
+                              tooltip: "Tirar foto da árvore",
+                            ),
+                        
+                        if (_fotosArvore.isNotEmpty && !_processandoFoto)
+                          Text("${_fotosArvore.length} foto(s)", 
+                            style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold)
+                          ),
+                        
+                        const Spacer(),
+                        
+                        if (!widget.isEditing && !_isInMultiplaFlow)
+                          Row(
+                            children: [
+                              const Text("Fim de linha?"),
+                              Switch(
+                                value: _fimDeLinha,
+                                onChanged: (v) => setState(() => _fimDeLinha = v),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
                   ],
                 ),
               ),
               const SizedBox(height: 24),
-              
-              // --- BOTÕES DE AÇÃO ---
               Wrap(
                 alignment: WrapAlignment.end,
                 spacing: 8.0,
@@ -412,31 +433,18 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                         ElevatedButton(onPressed: () => _submit(), child: const Text('Atualizar')),
                         TextButton(onPressed: () => _submit(atualizarEProximo: true), child: const Text('Próximo')),
                       ]
-                    : _isInMultiplaFlow
-                      ? [
-                          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
-                          ElevatedButton(onPressed: () => _submit(mesmoFuste: true), child: const Text('Adic. Fuste')),
-                          ElevatedButton(
-                            onPressed: () => _submit(proxima: true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.colorScheme.primary,
-                              foregroundColor: theme.colorScheme.onPrimary,
-                            ),
-                            child: const Text('Salvar e Próximo'),
+                    : [
+                        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+                        OutlinedButton(onPressed: () => _submit(mesmoFuste: true), child: const Text('Adic. Fuste')),
+                        ElevatedButton(
+                          onPressed: () => _submit(proxima: true),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary, 
+                            foregroundColor: theme.colorScheme.onPrimary
                           ),
-                        ]
-                      : [
-                          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
-                          OutlinedButton(onPressed: () => _submit(mesmoFuste: true), child: const Text('Adic. Fuste')),
-                          ElevatedButton(
-                            onPressed: () => _submit(proxima: true),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: theme.colorScheme.primary,
-                              foregroundColor: theme.colorScheme.onPrimary,
-                            ),
-                            child: const Text('Salvar e Próximo'),
-                          ),
-                        ],
+                          child: const Text('Salvar e Próximo'),
+                        ),
+                      ],
               )
             ],
           ),

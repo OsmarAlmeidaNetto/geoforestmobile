@@ -1,5 +1,4 @@
-// lib/models/arvore_model.dart (VERSÃO REFATORADA)
-
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:geoforestv1/data/datasources/local/database_constants.dart';
@@ -34,20 +33,24 @@ class Arvore {
   final double? capAuditoria;
   final double? alturaAuditoria;
   double? volume;
+  final List<String> photoPaths; // <--- NOVO
   final DateTime? lastModified;
 
   Arvore({
     this.id, required this.cap, this.altura, this.alturaDano, required this.linha,
     required this.posicaoNaLinha, this.fimDeLinha = false, this.dominante = false,
-    required this.codigo, this.codigo2, this.codigo3,this.especie, this.tora,
-    this.capAuditoria, this.alturaAuditoria, this.volume, this.lastModified,
+    required this.codigo, this.codigo2, this.codigo3, this.especie, this.tora,
+    this.capAuditoria, this.alturaAuditoria, this.volume, 
+    this.photoPaths = const [], // <--- NOVO
+    this.lastModified,
   });
 
   Arvore copyWith({
     int? id, double? cap, double? altura, double? alturaDano, int? linha,
     int? posicaoNaLinha, bool? fimDeLinha, bool? dominante, Codigo? codigo,
-    Codigo2? codigo2, String? codigo3,String? especie,  int? tora, double? capAuditoria,
-    double? alturaAuditoria, double? volume, DateTime? lastModified,
+    Codigo2? codigo2, String? codigo3, String? especie, int? tora, double? capAuditoria,
+    double? alturaAuditoria, double? volume, List<String>? photoPaths, // <--- NOVO
+    DateTime? lastModified,
   }) {
     return Arvore(
       id: id ?? this.id, cap: cap ?? this.cap, altura: altura ?? this.altura,
@@ -55,10 +58,12 @@ class Arvore {
       posicaoNaLinha: posicaoNaLinha ?? this.posicaoNaLinha,
       fimDeLinha: fimDeLinha ?? this.fimDeLinha, dominante: dominante ?? this.dominante,
       codigo: codigo ?? this.codigo, codigo2: codigo2 ?? this.codigo2,
-      codigo3: codigo3 ?? this.codigo3,especie: especie ?? this.especie, tora: tora ?? this.tora,
+      codigo3: codigo3 ?? this.codigo3, especie: especie ?? this.especie, tora: tora ?? this.tora,
       capAuditoria: capAuditoria ?? this.capAuditoria,
       alturaAuditoria: alturaAuditoria ?? this.alturaAuditoria,
-      volume: volume ?? this.volume, lastModified: lastModified ?? this.lastModified,
+      volume: volume ?? this.volume, 
+      photoPaths: photoPaths ?? this.photoPaths, // <--- NOVO
+      lastModified: lastModified ?? this.lastModified,
     );
   }
 
@@ -79,6 +84,7 @@ class Arvore {
       DbArvores.tora: tora,
       DbArvores.capAuditoria: capAuditoria,
       DbArvores.alturaAuditoria: alturaAuditoria,
+      'photoPaths': jsonEncode(photoPaths), // <--- NOVO (Salva como JSON string no SQLite)
       DbArvores.lastModified: lastModified?.toIso8601String(),
     };
   }
@@ -88,6 +94,18 @@ class Arvore {
       if (value is Timestamp) return value.toDate();
       if (value is String) return DateTime.tryParse(value);
       return null;
+    }
+
+    List<String> paths = [];
+    if (map['photoPaths'] != null && map['photoPaths'] is String && (map['photoPaths'] as String).isNotEmpty) {
+    try {
+      var decoded = jsonDecode(map['photoPaths']);
+      if (decoded is List) {
+        paths = List<String>.from(decoded);
+      }
+    } catch (e) {
+        print("Erro ao decodificar photoPaths da árvore: $e");
+      }
     }
 
     return Arvore(
@@ -108,6 +126,7 @@ class Arvore {
       tora: map[DbArvores.tora],
       capAuditoria: (map[DbArvores.capAuditoria] as num?)?.toDouble(),
       alturaAuditoria: (map[DbArvores.alturaAuditoria] as num?)?.toDouble(),
+      photoPaths: paths, // <--- NOVO
       lastModified: parseDate(map[DbArvores.lastModified]),
     );
   }

@@ -1,4 +1,4 @@
-// lib/data/repositories/parcela_repository.dart (VERSÃO COMPLETA E REFATORADA)
+// lib/data/repositories/parcela_repository.dart (VERSÃO REFORMULADA V61)
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -10,90 +10,110 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'dart:convert';
+import 'package:geoforestv1/models/talhao_model.dart';
+
 
 class ParcelaRepository {
   final DatabaseHelper _dbHelper = DatabaseHelper.instance;
 
+  /// Salva a coleta completa (Parcela + Lista de Árvores)
   Future<Parcela> saveFullColeta(Parcela p, List<Arvore> arvores) async {
-  final db = await _dbHelper.database;
-  final now = DateTime.now().toIso8601String();
+    final db = await _dbHelper.database;
+    final now = DateTime.now().toIso8601String();
 
-  return await db.transaction<Parcela>((txn) async {
-    int pId;
+    return await db.transaction<Parcela>((txn) async {
+      int pId;
 
-    // 1. Prepara o objeto
-    Parcela parcelaModificavel = p.copyWith(isSynced: false);
-    final pMap = parcelaModificavel.toMap();
-    
-    // Tratamento de datas
-    final d = parcelaModificavel.dataColeta ?? DateTime.now();
-    pMap[DbParcelas.dataColeta] = d.toIso8601String();
-    pMap[DbParcelas.lastModified] = now;
+      // ==============================================================================
+      // 1. LÓGICA DE DETECÇÃO AUTOMÁTICA DO TIPO DE ATIVIDADE (MIGRAÇÃO v61)
+      // ==============================================================================
+      String? tipoDetectado = p.atividadeTipo;
 
-    // ==============================================================================
-    // CORREÇÃO PRINCIPAL: Converter a lista para JSON *ANTES* de salvar no SQLite
-    // ==============================================================================
-    // O SQLite não aceita List/Map, apenas String. Sobrescrevemos o campo 'arvores'
-    // no mapa com a string JSON.
-    pMap['arvores'] = jsonEncode(arvores.map((a) => a.toMap()).toList());
-    // ==============================================================================
+      // Se o tipo for nulo, buscamos na tabela de atividades via Talhão
+      if (tipoDetectado == null && p.talhaoId != null) {
+        final List<Map<String, dynamic>> result = await txn.rawQuery('''
+          SELECT A.tipo FROM atividades A
+          INNER JOIN talhoes T ON T.fazendaAtividadeId = A.id
+          WHERE T.id = ? LIMIT 1
+        ''', [p.talhaoId]);
 
-    // Lógica para preencher projetoId se estiver faltando
-    if (pMap[DbParcelas.projetoId] == null && pMap[DbParcelas.talhaoId] != null) {
-      final List<Map<String, dynamic>> talhaoInfo = await txn.rawQuery('''
-        SELECT A.${DbAtividades.projetoId} FROM ${DbTalhoes.tableName} T
-        INNER JOIN ${DbFazendas.tableName} F ON F.${DbFazendas.id} = T.${DbTalhoes.fazendaId} AND F.${DbFazendas.atividadeId} = T.${DbTalhoes.fazendaAtividadeId}
-        INNER JOIN ${DbAtividades.tableName} A ON F.${DbFazendas.atividadeId} = A.${DbAtividades.id}
-        WHERE T.${DbTalhoes.id} = ? LIMIT 1
-      ''', [pMap[DbParcelas.talhaoId]]);
-
-      if (talhaoInfo.isNotEmpty) {
-        pMap[DbParcelas.projetoId] = talhaoInfo.first[DbAtividades.projetoId];
-        parcelaModificavel = parcelaModificavel.copyWith(projetoId: talhaoInfo.first[DbAtividades.projetoId] as int?);
+        if (result.isNotEmpty) {
+          tipoDetectado = result.first['tipo'];
+        }
       }
-    }
 
-    // Lógica do Líder
-    final prefs = await SharedPreferences.getInstance();
-    String? nomeDoResponsavel = prefs.getString('nome_lider');
-    if (nomeDoResponsavel == null || nomeDoResponsavel.isEmpty) {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user != null) {
-        nomeDoResponsavel = user.displayName ?? user.email;
+      // Prepara o objeto com o tipo detectado (isso remove o erro de variável não usada)
+      Parcela parcelaModificavel = p.copyWith(
+        isSynced: false,
+        atividadeTipo: tipoDetectado,
+      );
+
+      final pMap = parcelaModificavel.toMap();
+      
+      // Tratamento de datas e Auditoria
+      final d = parcelaModificavel.dataColeta ?? DateTime.now();
+      pMap[DbParcelas.dataColeta] = d.toIso8601String();
+      pMap[DbParcelas.lastModified] = now;
+
+      // Converter a lista de árvores para JSON para salvar na coluna TEXT da tabela parcelas
+      pMap['arvores'] = jsonEncode(arvores.map((a) => a.toMap()).toList());
+
+      // Lógica para preencher projetoId se estiver faltando
+      if (pMap[DbParcelas.projetoId] == null && pMap[DbParcelas.talhaoId] != null) {
+        final List<Map<String, dynamic>> talhaoInfo = await txn.rawQuery('''
+          SELECT A.${DbAtividades.projetoId} FROM ${DbTalhoes.tableName} T
+          INNER JOIN ${DbFazendas.tableName} F ON F.${DbFazendas.id} = T.${DbTalhoes.fazendaId} AND F.${DbFazendas.atividadeId} = T.${DbTalhoes.fazendaAtividadeId}
+          INNER JOIN ${DbAtividades.tableName} A ON F.${DbFazendas.atividadeId} = A.${DbAtividades.id}
+          WHERE T.${DbTalhoes.id} = ? LIMIT 1
+        ''', [pMap[DbParcelas.talhaoId]]);
+
+        if (talhaoInfo.isNotEmpty) {
+          final pIdProj = talhaoInfo.first[DbAtividades.projetoId] as int?;
+          pMap[DbParcelas.projetoId] = pIdProj;
+          parcelaModificavel = parcelaModificavel.copyWith(projetoId: pIdProj);
+        }
       }
-    }
-    if (nomeDoResponsavel != null) {
-      pMap[DbParcelas.nomeLider] = nomeDoResponsavel;
-      parcelaModificavel = parcelaModificavel.copyWith(nomeLider: nomeDoResponsavel);
-    }
 
-    // 2. Salva a Parcela (Agora o pMap já tem o JSON correto em 'arvores')
-    if (parcelaModificavel.dbId == null) {
-      pMap.remove(DbParcelas.id);
-      pId = await txn.insert(DbParcelas.tableName, pMap);
-      parcelaModificavel = parcelaModificavel.copyWith(dbId: pId, dataColeta: d);
-    } else {
-      pId = parcelaModificavel.dbId!;
-      await txn.update(DbParcelas.tableName, pMap, where: '${DbParcelas.id} = ?', whereArgs: [pId]);
-    }
+      // Lógica do Líder (Responsável pela Coleta)
+      final prefs = await SharedPreferences.getInstance();
+      String? nomeDoResponsavel = prefs.getString('nome_lider');
+      if (nomeDoResponsavel == null || nomeDoResponsavel.isEmpty) {
+        final user = FirebaseAuth.instance.currentUser;
+        if (user != null) {
+          nomeDoResponsavel = user.displayName ?? user.email;
+        }
+      }
+      if (nomeDoResponsavel != null) {
+        pMap[DbParcelas.nomeLider] = nomeDoResponsavel;
+        parcelaModificavel = parcelaModificavel.copyWith(nomeLider: nomeDoResponsavel);
+      }
 
-    // 3. Atualiza a tabela relacional 'arvores' (para consultas SQL locais)
-    await txn.delete(DbArvores.tableName, where: '${DbArvores.parcelaId} = ?', whereArgs: [pId]);
+      // 2. Salva ou Atualiza a Parcela (Tabela Pai)
+      if (parcelaModificavel.dbId == null) {
+        pMap.remove(DbParcelas.id);
+        pId = await txn.insert(DbParcelas.tableName, pMap);
+        parcelaModificavel = parcelaModificavel.copyWith(dbId: pId, dataColeta: d);
+      } else {
+        pId = parcelaModificavel.dbId!;
+        await txn.update(DbParcelas.tableName, pMap, 
+            where: '${DbParcelas.id} = ?', whereArgs: [pId]);
+      }
 
-    for (final a in arvores) {
-      final aMap = a.toMap();
-      aMap.remove(DbArvores.id);
-      aMap[DbArvores.parcelaId] = pId;
-      aMap[DbArvores.lastModified] = now;
-      await txn.insert(DbArvores.tableName, aMap);
-    }
+      // 3. Atualiza a tabela relacional 'arvores' (Para consultas SQL e Gráficos)
+      await txn.delete(DbArvores.tableName, 
+          where: '${DbArvores.parcelaId} = ?', whereArgs: [pId]);
 
-    // O "Segredo" antigo (update extra) não é mais necessário aqui, 
-    // pois já salvamos o JSON no passo 2, mas não faz mal deixar ou remover.
+      for (final a in arvores) {
+        final aMap = a.toMap();
+        aMap.remove(DbArvores.id);
+        aMap[DbArvores.parcelaId] = pId;
+        aMap[DbArvores.lastModified] = now;
+        await txn.insert(DbArvores.tableName, aMap);
+      }
 
-    return parcelaModificavel.copyWith(dbId: pId, arvores: arvores);
-  });
-}
+      return parcelaModificavel.copyWith(dbId: pId, arvores: arvores);
+    });
+  }
 
   Future<void> saveBatchParcelas(List<Parcela> parcelas) async {
     final db = await _dbHelper.database;
@@ -111,7 +131,8 @@ class ParcelaRepository {
     final db = await _dbHelper.database;
     final map = p.toMap();
     map[DbParcelas.lastModified] = DateTime.now().toIso8601String();
-    return await db.update(DbParcelas.tableName, map, where: '${DbParcelas.id} = ?', whereArgs: [p.dbId]);
+    return await db.update(DbParcelas.tableName, map, 
+        where: '${DbParcelas.id} = ?', whereArgs: [p.dbId]);
   }
 
   Future<void> updateParcelaStatus(int parcelaId, StatusParcela novoStatus) async {
@@ -133,9 +154,17 @@ class ParcelaRepository {
     return List.generate(maps.length, (i) => Parcela.fromMap(maps[i]));
   }
 
+  /// Busca parcela por ID usando JOIN para garantir que o atividadeTipo venha preenchido
   Future<Parcela?> getParcelaById(int id) async {
     final db = await _dbHelper.database;
-    final maps = await db.query(DbParcelas.tableName, where: '${DbParcelas.id} = ?', whereArgs: [id]);
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+      SELECT P.*, A.tipo as ${DbParcelas.atividadeTipo}
+      FROM ${DbParcelas.tableName} P
+      LEFT JOIN talhoes T ON P.talhaoId = T.id
+      LEFT JOIN atividades A ON T.fazendaAtividadeId = A.id
+      WHERE P.id = ?
+    ''', [id]);
+
     if (maps.isNotEmpty) return Parcela.fromMap(maps.first);
     return null;
   }
@@ -347,5 +376,20 @@ class ParcelaRepository {
       return List.generate(maps.length, (i) => Parcela.fromMap(maps[i]));
     }
     return [];
+  }
+
+  /// Busca um talhão pelo seu ID para fins de auditoria/referência
+  Future<Talhao?> getTalhaoById(int id) async {
+    final db = await _dbHelper.database;
+    final List<Map<String, dynamic>> maps = await db.query(
+      'talhoes',
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+
+    if (maps.isNotEmpty) {
+      return Talhao.fromMap(maps.first);
+    }
+    return null;
   }
 }

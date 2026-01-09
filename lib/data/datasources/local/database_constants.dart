@@ -85,6 +85,7 @@ class DbParcelas {
   static const String lado1 = 'lado1';
   static const String lado2 = 'lado2';
   static const String declividade = 'declividade';
+  static const String atividadeTipo = 'atividadeTipo';
   static const String lastModified = 'lastModified';
 }
 
@@ -106,6 +107,7 @@ class DbArvores {
   static const String observacao = 'observacao';
   static const String capAuditoria = 'capAuditoria';
   static const String alturaAuditoria = 'alturaAuditoria';
+  static const String photoPaths = 'photoPaths';
   static const String lastModified = 'lastModified';
 }
 

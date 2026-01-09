@@ -9,6 +9,7 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:geoforestv1/pages/dashboard/dashboard_page.dart';
 import 'package:geoforestv1/data/repositories/parcela_repository.dart';
 
+
 class InventarioPage extends StatefulWidget {
   final Parcela parcela;
 
@@ -356,7 +357,6 @@ class _InventarioPageState extends State<InventarioPage> {
 
   // >>> ATUALIZAÇÃO 1: PASSAR O FLAG BIO PARA O DIÁLOGO (NOVO) <<<
   Future<void> _adicionarNovaArvore({Arvore? arvoreInicial, bool isFusteAdicional = false}) async {
-    // Verifica se é BIO
     bool isBio = false;
     if (_parcelaAtual.atividadeTipo != null) {
       isBio = _parcelaAtual.atividadeTipo!.toUpperCase().contains('BIO');
@@ -370,7 +370,6 @@ class _InventarioPageState extends State<InventarioPage> {
 
     int proximaLinha = 1;
     int proximaPosicao = 1;
-    
     Arvore? arvoreTemplate;
 
     if (!isFusteAdicional && _arvoresColetadas.isNotEmpty) {
@@ -398,7 +397,12 @@ class _InventarioPageState extends State<InventarioPage> {
         linhaAtual: arvoreInicial?.linha ?? proximaLinha,
         posicaoNaLinhaAtual: arvoreInicial?.posicaoNaLinha ?? proximaPosicao,
         isAdicionandoFuste: isFusteAdicional,
-        isBio: isBio, // <--- Passa o valor calculado aqui
+        isBio: isBio,
+        // --- NOVOS PARÂMETROS PARA A FOTO ---
+        projetoNome: "GeoForest Analytics", // Ou busque o nome real se preferir
+        fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
+        talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
+        idParcela: _parcelaAtual.idParcela,
       ),
     );
 
@@ -409,14 +413,12 @@ class _InventarioPageState extends State<InventarioPage> {
 
   // >>> ATUALIZAÇÃO 2: PASSAR O FLAG BIO PARA O DIÁLOGO (EDIÇÃO) <<<
   Future<void> _abrirFormularioParaEditar(Arvore arvore) async {
-    // Verifica se é BIO
     bool isBio = false;
     if (_parcelaAtual.atividadeTipo != null) {
       isBio = _parcelaAtual.atividadeTipo!.toUpperCase().contains('BIO');
     }
 
     final int indexOriginal = _arvoresColetadas.indexOf(arvore);
-    
     if (indexOriginal == -1) return;
 
     final result = await showDialog<DialogResult>(
@@ -426,7 +428,12 @@ class _InventarioPageState extends State<InventarioPage> {
         arvoreParaEditar: arvore,
         linhaAtual: arvore.linha,
         posicaoNaLinhaAtual: arvore.posicaoNaLinha,
-        isBio: isBio, // <--- Passa o valor calculado aqui
+        isBio: isBio,
+        // --- NOVOS PARÂMETROS PARA A FOTO ---
+        projetoNome: "GeoForest Analytics",
+        fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
+        talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
+        idParcela: _parcelaAtual.idParcela,
       ),
     );
 
