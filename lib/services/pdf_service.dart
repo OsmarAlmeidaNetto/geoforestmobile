@@ -1,8 +1,6 @@
 // lib/services/pdf_service.dart (VERSÃO CORRIGIDA FINAL)
 
 import 'dart:io';
-import 'dart:typed_data';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:collection/collection.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/material.dart';
@@ -25,9 +23,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:geoforestv1/models/vehicle_checklist_model.dart';
-import 'dart:convert';
-import 'package:share_plus/share_plus.dart';
-import 'package:printing/printing.dart'; // <--- NOVO IMPORT
+ // <--- NOVO IMPORT
          // <--- IMPORTANTE
 
 class PdfService {
@@ -457,42 +453,18 @@ class PdfService {
     await _salvarEAbriPdf(context, pdf, nomeArquivo);
   } 
 
-  Future<void> gerarChecklistHtml(BuildContext context, VehicleChecklist checklist) async {
+  Future<void> gerarChecklistVeicularPdf(BuildContext context, VehicleChecklist checklist) async {
     try {
-      // 1. Verificação de Permissão
       if (!await _requestPermission(context)) return;
 
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Processando e gerando PDF...'),
-        duration: Duration(seconds: 2),
+        content: Text('Gerando PDF nativo...'),
+        duration: Duration(seconds: 1),
       ));
 
-      // 2. Processar e Comprimir Imagens
-      String htmlImagens = "";
-      if (checklist.fotosAvarias.isNotEmpty) {
-        htmlImagens += "<div class='break-before'><div class='section-title'>Registro Fotográfico</div><div class='gallery'>";
-        for (String path in checklist.fotosAvarias) {
-          final File imgFile = File(path);
-          if (await imgFile.exists()) {
-            // Comprime para JPG leve
-            final Uint8List? bytes = await FlutterImageCompress.compressWithFile(
-              imgFile.absolute.path,
-              minWidth: 600,
-              minHeight: 600,
-              quality: 50,
-            );
+      final pdf = pw.Document();
 
-            if (bytes != null) {
-              final String base64Image = base64Encode(bytes);
-              htmlImagens += "<div class='photo-container'><img src='data:image/jpeg;base64,$base64Image' class='photo' /></div>";
-            }
-          }
-        }
-        htmlImagens += "</div></div>";
-      }
-
-      // 3. Montar Linhas da Tabela
-      String linhasTabela = "";
+      // Lista de itens fixa (a mesma do model)
       const List<String> itensDescricao = [
         "1. Documentação do veículo", "2. Manual do veículo", "3. Ar condicionado",
         "4. Lataria", "5. Lanternas e faróis", "6. Luz Baixa", "7. Meia Luz",
@@ -504,136 +476,118 @@ class PdfService {
         "26. Rastreador", "27. Nível óleo", "28. Nível água"
       ];
 
+      // Prepara os dados da tabela
+      final List<List<String>> dadosTabela = [
+        ['Item', 'Descrição', 'C', 'NC', 'NA'] // Cabeçalho
+      ];
+
       for (int i = 0; i < itensDescricao.length; i++) {
         final index = (i + 1).toString();
         final desc = itensDescricao[i];
         final status = checklist.itens[index] ?? '';
         
-        String checkC = status == 'C' ? 'X' : '';
-        String checkNC = status == 'NC' ? 'X' : '';
-        String checkNA = status == 'NA' ? 'X' : '';
-        String bgClass = i % 2 == 0 ? 'bg-gray' : '';
-
-        linhasTabela += """
-          <tr class='$bgClass'>
-            <td style='text-align:center'>$index</td>
-            <td>$desc</td>
-            <td style='text-align:center'>$checkC</td>
-            <td style='text-align:center'>$checkNC</td>
-            <td style='text-align:center'>$checkNA</td>
-          </tr>
-        """;
+        dadosTabela.add([
+          index,
+          desc,
+          status == 'C' ? 'X' : '',
+          status == 'NC' ? 'X' : '',
+          status == 'NA' ? 'X' : '',
+        ]);
       }
 
-      // 4. HTML Completo
-      String htmlContent = """
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: sans-serif; font-size: 10px; margin: 0; padding: 15px; color: #333; }
-            .header { border: 1px solid #ccc; padding: 10px; background-color: #f8f8f8; margin-bottom: 15px; }
-            h1 { color: #023853; border-bottom: 2px solid #023853; margin-bottom: 10px; font-size: 18px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-            th { background-color: #023853; color: #fff; padding: 5px; border: 1px solid #999; font-size: 9px; }
-            td { border: 1px solid #ccc; padding: 4px; }
-            .bg-gray { background-color: #f0f0f0; }
-            .obs { border: 1px solid #ccc; padding: 8px; min-height: 30px; margin-bottom: 15px; }
-            .gallery { display: flex; flex-wrap: wrap; gap: 5px; }
-            .photo-container { width: 150px; height: 150px; border: 1px solid #ccc; overflow: hidden; background: #fff; }
-            .photo { width: 100%; height: 100%; object-fit: cover; }
-            .signatures { margin-top: 40px; display: flex; justify-content: space-around; }
-            .sign-line { width: 40%; border-top: 1px solid #000; text-align: center; padding-top: 5px; font-size: 10px;}
-            .break-before { page-break-before: always; }
-          </style>
-        </head>
-        <body>
-          <h1>CHECK LIST DE VEÍCULOS</h1>
-          
-          <div class="header">
-            <div><b>Motorista:</b> ${checklist.nomeMotorista} | <b>CNH:</b> ${checklist.categoriaCnh ?? '-'}</div>
-            <div style="margin-top:5px"><b>Veículo:</b> ${checklist.modeloVeiculo ?? '-'} | <b>Placa:</b> ${checklist.placa ?? '-'} | <b>KM:</b> ${checklist.kmAtual?.toStringAsFixed(0) ?? '-'}</div>
-            <div style="margin-top:5px; font-size:9px; text-align: right;">Data: ${DateFormat('dd/MM/yyyy HH:mm').format(checklist.dataRegistro)}</div>
-          </div>
+      // Constrói a página
+      pdf.addPage(
+        pw.MultiPage(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(20),
+          header: (pw.Context ctx) => _buildHeader('CHECKLIST DE VEÍCULO', checklist.placa ?? 'N/A'),
+          footer: (pw.Context ctx) => _buildFooter(),
+          build: (pw.Context ctx) {
+            return [
+              // Cabeçalho de Informações
+              pw.Container(
+                padding: const pw.EdgeInsets.all(10),
+                decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey)),
+                child: pw.Column(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                      pw.Text("Motorista: ${checklist.nomeMotorista}", style: pw.TextStyle(fontWeight: pw.FontWeight.bold)),
+                      pw.Text("Data: ${DateFormat('dd/MM/yyyy HH:mm').format(checklist.dataRegistro)}"),
+                    ]),
+                    pw.SizedBox(height: 5),
+                    pw.Row(mainAxisAlignment: pw.MainAxisAlignment.spaceBetween, children: [
+                      pw.Text("Veículo: ${checklist.modeloVeiculo ?? '-'}"),
+                      pw.Text("KM: ${checklist.kmAtual?.toStringAsFixed(0) ?? '-'}"),
+                    ]),
+                    pw.SizedBox(height: 5),
+                    pw.Text("CNH: ${checklist.categoriaCnh ?? '-'} (Venc: ${checklist.vencimentoCnh != null ? DateFormat('dd/MM/yyyy').format(checklist.vencimentoCnh!) : '-'})"),
+                  ]
+                )
+              ),
+              
+              pw.SizedBox(height: 15),
 
-          <table>
-            <thead><tr><th width="30">Item</th><th>Descrição</th><th width="25">C</th><th width="25">NC</th><th width="25">NA</th></tr></thead>
-            <tbody>$linhasTabela</tbody>
-          </table>
+              // Tabela Otimizada
+              pw.TableHelper.fromTextArray(
+                data: dadosTabela,
+                headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, color: PdfColors.white, fontSize: 10),
+                headerDecoration: const pw.BoxDecoration(color: PdfColors.blueGrey800),
+                cellStyle: const pw.TextStyle(fontSize: 9),
+                cellAlignment: pw.Alignment.center,
+                cellAlignments: { 1: pw.Alignment.centerLeft }, // Descrição alinhada à esquerda
+                columnWidths: {
+                  0: const pw.FixedColumnWidth(25), // Item
+                  1: const pw.FlexColumnWidth(),    // Descrição
+                  2: const pw.FixedColumnWidth(25), // C
+                  3: const pw.FixedColumnWidth(25), // NC
+                  4: const pw.FixedColumnWidth(25), // NA
+                },
+                rowDecoration: const pw.BoxDecoration(border: pw.Border(bottom: pw.BorderSide(width: 0.5, color: PdfColors.grey300))),
+              ),
 
-          <h4>Observações</h4>
-          <div class="obs">${checklist.observacoes ?? 'Sem observações.'}</div>
+              pw.SizedBox(height: 15),
 
-          $htmlImagens
+              // Observações
+              pw.Text("Observações:", style: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 12)),
+              pw.Container(
+                width: double.infinity,
+                padding: const pw.EdgeInsets.all(8),
+                margin: const pw.EdgeInsets.only(top: 5),
+                decoration: pw.BoxDecoration(border: pw.Border.all(color: PdfColors.grey), borderRadius: pw.BorderRadius.circular(4)),
+                child: pw.Text(checklist.observacoes?.isNotEmpty == true ? checklist.observacoes! : 'Sem observações.', style: const pw.TextStyle(fontSize: 10)),
+              ),
 
-          <div class="signatures">
-            <div class="sign-line">Assinatura do Motorista</div>
-            <div class="sign-line">Responsável da Empresa</div>
-          </div>
-        </body>
-        </html>
-      """;
+              pw.SizedBox(height: 40),
 
-      // 5. CONVERSÃO (Printing)
-      final Uint8List pdfBytes = await Printing.convertHtml(
-        html: htmlContent,
-        format: PdfPageFormat.a4,        
+              // Assinaturas
+              pw.Row(
+                mainAxisAlignment: pw.MainAxisAlignment.spaceAround,
+                children: [
+                  pw.Column(children: [
+                    pw.Container(width: 150, height: 1, color: PdfColors.black),
+                    pw.SizedBox(height: 5),
+                    pw.Text("Assinatura do Motorista", style: const pw.TextStyle(fontSize: 10)),
+                  ]),
+                  pw.Column(children: [
+                    pw.Container(width: 150, height: 1, color: PdfColors.black),
+                    pw.SizedBox(height: 5),
+                    pw.Text("Visto do Supervisor", style: const pw.TextStyle(fontSize: 10)),
+                  ]),
+                ]
+              )
+            ];
+          },
+        ),
       );
 
-      // 6. Salvar Arquivo
-      final downloadsDirectory = await _getDownloadsDirectory(context);
-      if (downloadsDirectory == null) return;
-      
-      final relatoriosDir = Directory('${downloadsDirectory.path}/GeoForest/Relatorios');
-      if (!await relatoriosDir.exists()) {
-        await relatoriosDir.create(recursive: true);
-      }
-
       final nomeArquivo = 'Checklist_${checklist.placa?.replaceAll(' ', '') ?? 'Auto'}_${DateFormat('yyyyMMdd_HHmm').format(checklist.dataRegistro)}.pdf';
-      final file = File('${relatoriosDir.path}/$nomeArquivo');
-      
-      await file.writeAsBytes(pdfBytes);
-
-      // 7. Sucesso!
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).removeCurrentSnackBar();
-        
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text("PDF Gerado com Sucesso"),
-            content: Text("O relatório PDF foi salvo.\n\nO que deseja fazer?"),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(ctx);
-                  OpenFile.open(file.path);
-                },
-                child: const Text("Visualizar"),
-              ),
-              FilledButton.icon(
-                icon: const Icon(Icons.share),
-                label: const Text("Compartilhar PDF"),
-                onPressed: () async {
-                  Navigator.pop(ctx);
-                  await Share.shareXFiles(
-                    [XFile(file.path)], 
-                    text: 'Checklist Veicular PDF - ${checklist.placa}'
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      }
+      await _salvarEAbriPdf(context, pdf, nomeArquivo);
 
     } catch (e) {
-      debugPrint("Erro ao gerar PDF (Printing): $e");
+      debugPrint("Erro ao gerar PDF: $e");
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          content: Text('Erro: $e'),
-          backgroundColor: Colors.red,
-        ));
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro: $e'), backgroundColor: Colors.red));
       }
     }
   }

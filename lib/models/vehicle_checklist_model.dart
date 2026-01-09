@@ -20,8 +20,7 @@ class VehicleChecklist {
   final Map<String, String> itens;
   final String? observacoes;
   
-  // CAMPO PARA FOTOS
-  final List<String> fotosAvarias;
+  // REMOVIDO: final List<String> fotosAvarias;
   
   final DateTime lastModified;
 
@@ -39,7 +38,7 @@ class VehicleChecklist {
     required this.isMotorista,
     this.itens = const {},
     this.observacoes,
-    this.fotosAvarias = const [], // Inicializa como lista vazia se não passar nada
+    // REMOVIDO: this.fotosAvarias = const [],
     required this.lastModified,
   });
 
@@ -58,32 +57,12 @@ class VehicleChecklist {
       'is_motorista': isMotorista ? 1 : 0,
       'itens_json': jsonEncode(itens),
       'observacoes': observacoes,
-      // Salva a lista de caminhos como uma String JSON no banco
-      'fotos_avarias': jsonEncode(fotosAvarias), 
+      // REMOVIDO: 'fotos_avarias': jsonEncode(fotosAvarias), 
       'lastModified': lastModified.toIso8601String(),
     };
   }
 
   factory VehicleChecklist.fromMap(Map<String, dynamic> map) {
-    // --- LÓGICA DECODIFICADORA ADICIONADA AQUI ---
-    List<String> listaFotos = [];
-    
-    if (map['fotos_avarias'] != null) {
-      try {
-        // Tenta decodificar a string JSON
-        var decoded = jsonDecode(map['fotos_avarias']);
-        if (decoded is List) {
-          listaFotos = List<String>.from(decoded);
-        }
-      } catch (_) {
-        // Se falhar (ex: migração antiga), tenta ler direto se já for lista
-        if (map['fotos_avarias'] is List) {
-           listaFotos = List<String>.from(map['fotos_avarias']);
-        }
-      }
-    }
-    // ----------------------------------------------
-
     return VehicleChecklist(
       id: map['id'],
       dataRegistro: DateTime.parse(map['data_registro']),
@@ -98,8 +77,7 @@ class VehicleChecklist {
       isMotorista: map['is_motorista'] == 1,
       itens: Map<String, String>.from(jsonDecode(map['itens_json'] ?? '{}')),
       observacoes: map['observacoes'],
-      // Agora a variável 'listaFotos' existe e pode ser usada
-      fotosAvarias: listaFotos, 
+      // REMOVIDO A LÓGICA DE FOTOS AQUI
       lastModified: DateTime.parse(map['lastModified']),
     );
   }
