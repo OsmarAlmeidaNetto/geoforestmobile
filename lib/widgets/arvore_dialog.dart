@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:geoforestv1/models/arvore_model.dart';
 import 'package:geoforestv1/models/especie_model.dart';
@@ -133,49 +132,63 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
   }
 
   // FUNÇÃO DE CAPTURA DE FOTO COM MARCA D'ÁGUA
-  Future<void> _capturarFoto() async {
-    final picker = ImagePicker();
-    final XFile? photo = await picker.pickImage(
-      source: ImageSource.camera, 
-      imageQuality: 30, // Qualidade baixa para não estourar RAM
-      maxWidth: 750,
-       maxHeight: 750,   
+  // Localize a função _capturarFoto no seu arvore_dialog.dart e substitua por esta:
+Future<void> _capturarFoto() async {
+  final picker = ImagePicker();
+  
+  // 1. PRIMEIRA BARREIRA: Reduz a foto logo na captura (800 ou 1000 é o ideal)
+  final XFile? photo = await picker.pickImage(
+    source: ImageSource.camera, 
+    imageQuality: 50, 
+    maxWidth: 1000, 
+    maxHeight: 1000,   
+  );
+  
+  if (photo == null) return;
+
+  setState(() => _processandoFoto = true);
+
+  try {
+    // 2. BUSCA DE DADOS (Garante que não enviamos strings vazias)
+    final linha = _linhaController.text.isEmpty ? "N/I" : _linhaController.text;
+    final pos = _posicaoController.text.isEmpty ? "N/I" : _posicaoController.text;
+    final especie = _especieController.text.isEmpty ? "Não informada" : _especieController.text;
+
+    final List<String> linhasDagua = [
+      "PROJETO: ${widget.projetoNome}",
+      "LOCAL: ${widget.fazendaNome} | ${widget.talhaoNome}",
+      "PARCELA: ${widget.idParcela} | L:$linha | P:$pos",
+      "ESPÉCIE: $especie",
+      "DATA: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}"
+    ];
+
+    final nomeArquivo = "TREE_L${linha}_P${pos}_${DateTime.now().millisecondsSinceEpoch}.jpg";
+
+    // 3. CHAMA O MOTOR NATIVO (Otimizado para não crashar)
+    // Este método vai comprimir, desenhar a tarja e salvar na Galeria
+    await ImageUtils.processarESalvarFoto(
+      pathOriginal: photo.path,
+      linhasMarcaDagua: linhasDagua,
+      nomeArquivoFinal: nomeArquivo,
     );
-    
-    if (photo == null) return;
 
-    setState(() => _processandoFoto = true);
+    // 4. ATUALIZA A LISTA LOCAL
+    // Mantemos o photo.path para exibição da miniatura na tela atual
+    setState(() {
+      _fotosArvore.add(photo.path);
+    });
 
-    try {
-      // Proteção contra campos vazios
-      final linha = _linhaController.text.isEmpty ? "0" : _linhaController.text;
-      final pos = _posicaoController.text.isEmpty ? "0" : _posicaoController.text;
-
-      final linhas = [
-        "Projeto: ${widget.projetoNome}",
-        "Fazenda: ${widget.fazendaNome} | Talhão: ${widget.talhaoNome}",
-        "Parcela: ${widget.idParcela} | L:$linha | P:$pos",
-        "Espécie: ${_especieController.text}",
-        "Data: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now())}"
-      ];
-
-      final nomeArquivo = "TREE_L${linha}_P${pos}_${DateTime.now().millisecondsSinceEpoch}.jpg";
-
-      await ImageUtils.processarESalvarFoto(
-        pathOriginal: photo.path,
-        linhasMarcaDagua: linhas,
-        nomeArquivoFinal: nomeArquivo,
+  } catch (e) {
+    debugPrint("Erro ao processar foto da árvore: $e");
+    if(mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Erro ao salvar foto: $e"), backgroundColor: Colors.red)
       );
-
-      setState(() {
-        _fotosArvore.add(photo.path);
-      });
-    } catch (e) {
-      debugPrint("Erro ao tirar foto: $e");
-    } finally {
-      if (mounted) setState(() => _processandoFoto = false);
     }
+  } finally {
+    if (mounted) setState(() => _processandoFoto = false);
   }
+}
 
   @override
   void dispose() {

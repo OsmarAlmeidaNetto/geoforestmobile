@@ -1,7 +1,6 @@
 // lib/pages/amostra/coleta_dados_page.dart (VERSÃO FINAL COMPLETA)
 
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'dart:math' as math;
@@ -13,12 +12,11 @@ import 'package:intl/intl.dart';
 import 'package:proj4dart/proj4dart.dart' as proj4;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:geoforestv1/services/permission_service.dart';
-import 'package:image/image.dart' as img;
-import 'package:gal/gal.dart';
 import 'package:geoforestv1/data/datasources/local/database_helper.dart';
 import 'package:geoforestv1/utils/constants.dart';
 import 'package:geoforestv1/data/repositories/parcela_repository.dart';
 import 'package:geoforestv1/data/repositories/projeto_repository.dart';
+import 'package:geoforestv1/utils/image_utils.dart';
 
 enum FormaParcela { retangular, circular }
 enum DeclividadeUnidade { graus, porcentagem }
@@ -274,99 +272,86 @@ class _ColetaDadosPageState extends State<ColetaDadosPage> {
   }
 
   Future<void> _pickImage(ImageSource source) async {
-    final XFile? pickedFile = await _picker.pickImage(source: source, imageQuality: 85, maxWidth: 1280);
-    if (pickedFile == null || !mounted) return;
+  // REDUÇÃO NA FONTE: A câmera já entrega a foto menor, poupando RAM imediatamente
+  final XFile? pickedFile = await _picker.pickImage(
+    source: source, 
+    imageQuality: 50, 
+    maxWidth: 1000, 
+    maxHeight: 1000
+  );
+  
+  if (pickedFile == null || !mounted) return;
 
-    final bool hasPermission = await _permissionService.requestStoragePermission();
-    if (!hasPermission) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Permissão de armazenamento negada.'), backgroundColor: Colors.red));
+  final bool hasPermission = await _permissionService.requestStoragePermission();
+  if (!hasPermission) return;
+
+  setState(() => _salvando = true);
+
+  try {
+    // 1. Configura Proj4 (Sua lógica de coordenadas)
+    proj4.Projection.add('EPSG:4326', '+proj=longlat +datum=WGS84 +no_defs');
+    proj4Definitions.forEach((epsg, def) {
+      try { proj4.Projection.get('EPSG:$epsg'); } catch(_) { proj4.Projection.add('EPSG:$epsg', def); }
+    });
+
+    if (_parcelaAtual.dbId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Salve a parcela antes de tirar fotos.')));
+      setState(() => _salvando = false);
       return;
     }
-
-    try {
-      proj4.Projection.add('EPSG:4326', '+proj=longlat +datum=WGS84 +no_defs');
-      proj4Definitions.forEach((epsg, def) {
-        proj4.Projection.add('EPSG:$epsg', def);
-      });
-
-      if (_parcelaAtual.dbId == null) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Por favor, salve os dados da parcela antes de adicionar fotos.'), backgroundColor: Colors.orange));
-        return;
-      }
-      
-      final projeto = await _projetoRepository.getProjetoPelaParcela(_parcelaAtual);
-      final projetoNome = projeto?.nome.replaceAll(RegExp(r'[^\w\s-]'), '') ?? 'PROJETO';
-      final fazendaNome = _parcelaAtual.nomeFazenda?.replaceAll(RegExp(r'[^\w\s-]'), '') ?? 'FAZENDA';
-      final talhaoNome = _parcelaAtual.nomeTalhao?.replaceAll(RegExp(r'[^\w\s-]'), '') ?? 'TALHAO';
-      final idParcela = _idParcelaController.text.trim().replaceAll(RegExp(r'[^\w\s-]'), '');
-      
-      final prefs = await SharedPreferences.getInstance();
-      String utmString = "UTM N/A";
-      
-      if (_parcelaAtual.latitude != null && _parcelaAtual.longitude != null) {
-        final nomeZona = prefs.getString('zona_utm_selecionada') ?? 'SIRGAS 2000 / UTM Zona 22S';
-        final codigoEpsg = zonasUtmSirgas2000[nomeZona] ?? 31982;
-        
-        final projWGS84 = proj4.Projection.get('EPSG:4326');
-        final projUTM = proj4.Projection.get('EPSG:$codigoEpsg');
-        
-        if (projWGS84 == null || projUTM == null) {
-            throw Exception('Falha ao obter sistema de projeção (Proj4). Tente novamente.');
-        }
-
+    
+    // 2. Coleta nomes para a marca d'água
+    final projeto = await _projetoRepository.getProjetoPelaParcela(_parcelaAtual);
+    final projetoNome = projeto?.nome ?? 'PROJETO';
+    final fazendaNome = _parcelaAtual.nomeFazenda ?? 'FAZENDA';
+    final talhaoNome = _parcelaAtual.nomeTalhao ?? 'TALHAO';
+    final idParcela = _idParcelaController.text.trim();
+    
+    final prefs = await SharedPreferences.getInstance();
+    String utmString = "UTM N/A";
+    
+    if (_parcelaAtual.latitude != null && _parcelaAtual.longitude != null) {
+      final nomeZona = prefs.getString('zona_utm_selecionada') ?? 'UTM Zona 22S';
+      final codigoEpsg = zonasUtmSirgas2000[nomeZona] ?? 31982;
+      final projWGS84 = proj4.Projection.get('EPSG:4326');
+      final projUTM = proj4.Projection.get('EPSG:$codigoEpsg');
+      if (projWGS84 != null && projUTM != null) {
         var pUtm = projWGS84.transform(projUTM, proj4.Point(x: _parcelaAtual.longitude!, y: _parcelaAtual.latitude!));
-        utmString = "E: ${pUtm.x.toInt()} N: ${pUtm.y.toInt()} | ${nomeZona.split('/')[1].trim()}";
+        utmString = "E: ${pUtm.x.toInt()} N: ${pUtm.y.toInt()} | $nomeZona";
       }
-      
-      final String nomeLider = prefs.getString('nome_lider') ?? 'Equipe N/A';
-      
-      final timestamp = DateTime.now();
-      final dataHoraFormatada = DateFormat('dd/MM/yyyy HH:mm:ss').format(timestamp);
-      final nomeArquivoTimestamp = DateFormat('yyyyMMdd_HHmmss').format(timestamp);
-      final String nomeArquivoFinal = "${projetoNome}_${fazendaNome}_${talhaoNome}_${idParcela}_$nomeArquivoTimestamp.jpg";
-      
-      final bytesImagemOriginal = await File(pickedFile.path).readAsBytes();
-      img.Image? imagemEditavel = img.decodeImage(bytesImagemOriginal);
-      if (imagemEditavel == null) throw Exception("Não foi possível decodificar a imagem.");
-
-      final List<String> linhas = [
-        "Projeto: $projetoNome",
-        "Fazenda: $fazendaNome | Talhão: $talhaoNome | Parcela: $idParcela",
-        utmString,
-        "Líder: $nomeLider | $dataHoraFormatada"
-      ];
-
-      final int alturaLinha = 28;
-      final int alturaTotalTexto = linhas.length * alturaLinha;
-      final int alturaFaixa = alturaTotalTexto + 15;
-
-      img.fillRect(imagemEditavel, x1: 0, y1: imagemEditavel.height - alturaFaixa, x2: imagemEditavel.width, y2: imagemEditavel.height, color: img.ColorRgba8(0, 0, 0, 128));
-
-      for (int i = 0; i < linhas.length; i++) {
-        int yPos = (imagemEditavel.height - alturaFaixa) + (i * alturaLinha) + 10;
-        img.drawString(imagemEditavel, linhas[i], font: img.arial24, x: 10, y: yPos, color: img.ColorRgb8(255, 255, 255));
-      }
-
-      final Uint8List bytesFinais = Uint8List.fromList(img.encodeJpg(imagemEditavel, quality: 85));
-
-      await Gal.putImageBytes(bytesFinais, name: nomeArquivoFinal);
-
-      setState(() {
-          _parcelaAtual.photoPaths.add(pickedFile.path);
-      });
-      
-      await _salvarAlteracoes(showSnackbar: false);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Foto salva na galeria e vinculada à parcela!'), backgroundColor: Colors.green)
-        );
-      }
-
-    } catch (e) {
-      if(mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Erro ao salvar foto: ${e.toString()}'), backgroundColor: Colors.red));
     }
+    
+    final String nomeLider = prefs.getString('nome_lider') ?? 'N/A';
+    final dataHora = DateFormat('dd/MM/yyyy HH:mm:ss').format(DateTime.now());
+    final nomeArquivoFinal = "PARC_${talhaoNome}_${idParcela}_${DateTime.now().millisecondsSinceEpoch}.jpg";
+
+    final List<String> linhas = [
+      "Projeto: $projetoNome",
+      "Fazenda: $fazendaNome | Talhão: $talhaoNome | Parcela: $idParcela",
+      utmString,
+      "Líder: $nomeLider | $dataHora"
+    ];
+
+    // 3. CHAMA O NOVO ImageUtils (LEVE E SEGURO)
+    await ImageUtils.processarESalvarFoto(
+      pathOriginal: pickedFile.path,
+      linhasMarcaDagua: linhas,
+      nomeArquivoFinal: nomeArquivoFinal,
+    );
+
+    // 4. Vincula o path original ao banco para exibir miniatura
+    setState(() {
+        _parcelaAtual.photoPaths.add(pickedFile.path);
+    });
+    
+    await _salvarAlteracoes(showSnackbar: false);
+
+  } catch (e) {
+    debugPrint("Erro ao salvar foto: $e");
+  } finally {
+    if (mounted) setState(() => _salvando = false);
   }
+}
 
   Future<void> _reabrirParaEdicao() async {
     setState(() => _salvando = true);

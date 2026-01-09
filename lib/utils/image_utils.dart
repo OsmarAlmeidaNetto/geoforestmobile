@@ -2,101 +2,78 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:image/image.dart' as img;
+import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:gal/gal.dart';
 
-class _ImagePayload {
-  final String pathOriginal;
-  final List<String> linhasMarcaDagua;
-  final String nomeArquivoFinal;
-  _ImagePayload({
-    required this.pathOriginal, 
-    required this.linhasMarcaDagua, 
-    required this.nomeArquivoFinal
-  });
-}
-
 class ImageUtils {
-  static Future<String> processarESalvarFoto({
+  static Future<void> processarESalvarFoto({
     required String pathOriginal,
     required List<String> linhasMarcaDagua,
     required String nomeArquivoFinal,
   }) async {
     try {
-      final payload = _ImagePayload(
-        pathOriginal: pathOriginal,
-        linhasMarcaDagua: linhasMarcaDagua,
-        nomeArquivoFinal: nomeArquivoFinal,
+      // PASSO 1: Compressão Nativa (Roda fora do Dart, não gasta RAM do app)
+      // Reduzimos para 800px que é o tamanho ideal para ver detalhes e ler o texto
+      final Uint8List? compressedBytes = await FlutterImageCompress.compressWithFile(
+        pathOriginal,
+        minWidth: 800,
+        minHeight: 800,
+        quality: 60,
       );
 
-      // O 'compute' executa o processamento pesado em uma Isolate separada
-      final Uint8List? bytesFinais = await compute(_processarImagemNoFundo, payload);
+      if (compressedBytes == null) return;
 
-      if (bytesFinais != null) {
-        // O salvamento na galeria DEVE ser feito na thread principal (fora do compute)
-        await Gal.putImageBytes(bytesFinais, name: nomeArquivoFinal);
-        debugPrint("Foto processada e salva com sucesso: $nomeArquivoFinal");
-        return pathOriginal;
-      }
-      return "";
+      // PASSO 2: Desenhar marca d'água usando um Isolate (compute)
+      // O 'compute' cria uma thread separada só para essa tarefa, evitando o crash
+      final Uint8List finalBytes = await compute(_desenharMarcaDaguaIsolate, {
+        'bytes': compressedBytes,
+        'linhas': linhasMarcaDagua,
+      });
+
+      // PASSO 3: Salva na galeria
+      await Gal.putImageBytes(finalBytes, name: nomeArquivoFinal);
+
+      // Limpeza: Deleta o arquivo original temporário
+      final file = File(pathOriginal);
+      if (await file.exists()) await file.delete();
+      
     } catch (e) {
-      debugPrint("ERRO CRÍTICO NO PROCESSAMENTO DE IMAGEM: $e");
-      return "";
+      debugPrint("ERRO NA IMAGEM: $e");
     }
   }
 }
 
-// FUNÇÃO TOP-LEVEL (Fora da classe) para performance máxima do Isolate
-Uint8List? _processarImagemNoFundo(_ImagePayload payload) {
-  try {
-    final File file = File(payload.pathOriginal);
-    if (!file.existsSync()) return null;
-    
-    final Uint8List inputBytes = file.readAsBytesSync();
-    
-    // Decodifica a imagem
-    img.Image? image = img.decodeImage(inputBytes);
-    if (image == null) return null;
+// Função que roda em Isolate (Sala separada da memória)
+Uint8List _desenharMarcaDaguaIsolate(Map<String, dynamic> data) {
+  final Uint8List bytes = data['bytes'];
+  final List<String> linhas = data['linhas'];
 
-    // Redimensionamento agressivo para preservar RAM (800px é o ponto ideal)
-    if (image.width > 800 || image.height > 800) {
-      image = img.copyResize(image, width: 800);
-    }
+  // Como a imagem já foi reduzida pelo compressor nativo, o decode aqui é levíssimo
+  final image = img.decodeJpg(bytes);
+  if (image == null) return bytes;
 
-    // Configuração da marca d'água
-    final int alturaLinha = 25; 
-    final int alturaFaixa = (payload.linhasMarcaDagua.length * alturaLinha) + 15;
+  const int alturaLinha = 25;
+  final int alturaTarja = (linhas.length * alturaLinha) + 15;
 
-    // Desenha a faixa de fundo (Preto sólido gasta menos processamento que transparente)
-    img.fillRect(
-      image, 
-      x1: 0, 
-      y1: image.height - alturaFaixa, 
-      x2: image.width, 
-      y2: image.height, 
-      color: img.ColorRgb8(0, 0, 0)
+  // Desenha tarja preta sólida (mais leve que transparente)
+  img.fillRect(
+    image,
+    x1: 0, y1: image.height - alturaTarja,
+    x2: image.width, y2: image.height,
+    color: img.ColorRgb8(0, 0, 0),
+  );
+
+  // Escreve o texto
+  for (int i = 0; i < linhas.length; i++) {
+    img.drawString(
+      image,
+      linhas[i],
+      font: img.arial14,
+      x: 15,
+      y: (image.height - alturaTarja) + (i * alturaLinha) + 8,
+      color: img.ColorRgb8(255, 255, 255),
     );
-
-    // Escreve as linhas de texto
-    for (int i = 0; i < payload.linhasMarcaDagua.length; i++) {
-      int yPos = (image.height - alturaFaixa) + (i * alturaLinha) + 5;
-      img.drawString(
-        image, 
-        payload.linhasMarcaDagua[i], 
-        font: img.arial14, // Fonte pequena mas legível para 800px
-        x: 10, 
-        y: yPos, 
-        color: img.ColorRgb8(255, 255, 255)
-      );
-    }
-
-    // Codifica para JPG com qualidade moderada
-    final Uint8List output = Uint8List.fromList(img.encodeJpg(image, quality: 60));
-    
-    // Limpeza manual para ajudar o Garbage Collector
-    image = null; 
-    
-    return output;
-  } catch (e) {
-    return null;
   }
+
+  return Uint8List.fromList(img.encodeJpg(image, quality: 70));
 }
