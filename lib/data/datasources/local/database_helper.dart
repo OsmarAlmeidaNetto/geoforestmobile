@@ -1,5 +1,3 @@
-// lib/data/datasources/local/database_helper.dart (VERSÃO COMPLETA E REFATORADA)
-
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
@@ -8,23 +6,16 @@ import 'package:geoforestv1/data/datasources/local/database_constants.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'dart:convert';
 
+// (Mantenha o mapa proj4Definitions aqui em cima...)
 final Map<int, String> proj4Definitions = {
-  31978:
-      '+proj=utm +zone=18 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31979:
-      '+proj=utm +zone=19 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31980:
-      '+proj=utm +zone=20 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31981:
-      '+proj=utm +zone=21 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31982:
-      '+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31983:
-      '+proj=utm +zone=23 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31984:
-      '+proj=utm +zone=24 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
-  31985:
-      '+proj=utm +zone=25 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31978: '+proj=utm +zone=18 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31979: '+proj=utm +zone=19 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31980: '+proj=utm +zone=20 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31981: '+proj=utm +zone=21 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31982: '+proj=utm +zone=22 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31983: '+proj=utm +zone=23 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31984: '+proj=utm +zone=24 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
+  31985: '+proj=utm +zone=25 +south +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +units=m +no_defs',
 };
 
 class DatabaseHelper {
@@ -40,7 +31,7 @@ class DatabaseHelper {
   Future<Database> _initDatabase() async {
     return await openDatabase(
       join(await getDatabasesPath(), 'geoforestv1.db'),
-      version: 54,
+      version: 60, // Mantemos a versão 60
       onConfigure: _onConfigure,
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
@@ -50,7 +41,11 @@ class DatabaseHelper {
   Future<void> _onConfigure(Database db) async =>
       await db.execute('PRAGMA foreign_keys = ON');
 
+  // --- CRIAÇÃO DO BANCO (NOVOS USUÁRIOS) ---
   Future<void> _onCreate(Database db, int version) async {
+    debugPrint("Criando banco de dados versão $version do zero...");
+
+    // 1. Cria todas as tabelas padrão
     await db.execute('''
       CREATE TABLE ${DbProjetos.tableName} (
         ${DbProjetos.id} INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,6 +145,7 @@ class DatabaseHelper {
       )
     ''');
 
+    // TABELA ARVORES (JÁ COM A COLUNA ESPECIE)
     await db.execute('''
       CREATE TABLE ${DbArvores.tableName} (
         ${DbArvores.id} INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -164,6 +160,7 @@ class DatabaseHelper {
         ${DbArvores.codigo} TEXT NOT NULL,
         ${DbArvores.codigo2} TEXT,
         ${DbArvores.codigo3} TEXT,
+        especie TEXT, 
         ${DbArvores.tora} TEXT,
         ${DbArvores.observacao} TEXT,
         ${DbArvores.capAuditoria} REAL,
@@ -267,6 +264,8 @@ class DatabaseHelper {
         lastModified TEXT NOT NULL
       )
     ''');
+
+    // 2. CRIA A TABELA ESPECIES
     await db.execute('''
       CREATE TABLE especies (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -277,33 +276,22 @@ class DatabaseHelper {
         regiao TEXT
       )
     ''');
-
-    // 2. Adiciona a coluna especie em arvores (caso a tabela arvores já tenha sido criada acima sem ela)
-    // Se você já criou a tabela arvores lá em cima, verifique se ela tem a coluna 'especie'.
-    // Se não tiver, adicione o alter table aqui ou modifique o CREATE TABLE lá em cima.
-    // Para garantir:
-    try {
-       // Se a tabela arvores foi criada no topo do _onCreate sem a coluna, isso aqui resolve:
-       await db.execute('ALTER TABLE arvores ADD COLUMN especie TEXT');
-    } catch (_) {
-       // Se já tiver, ignora o erro
-    }
-
-    // 3. Popula a tabela
-    await _popularTabelaEspecies(db);
     
-    // --- FIM DA ADIÇÃO ---
-
+    // 3. INDEXES
     await db.execute(
         'CREATE INDEX idx_arvores_parcelaId ON ${DbArvores.tableName}(${DbArvores.parcelaId})');
     await db.execute(
         'CREATE INDEX idx_cubagens_secoes_cubagemArvoreId ON ${DbCubagensSecoes.tableName}(${DbCubagensSecoes.cubagemArvoreId})');
+        
+    // 4. POPULA AS ESPECIES
+    await _popularTabelaEspecies(db);
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    for (var v = oldVersion + 1; v <= newVersion; v++) {
-      debugPrint("Executando migração de banco de dados para a versão $v...");
-      switch (v) {
+  debugPrint("SISTEMA: Tentando migrar de $oldVersion para $newVersion");
+  for (var v = oldVersion + 1; v <= newVersion; v++) {
+    debugPrint("SISTEMA: Processando migração v$v...");
+    switch (v) {
         case 25:
           await db.execute(
               'ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.uuid} TEXT');
@@ -594,35 +582,37 @@ class DatabaseHelper {
             )
           ''');
           break;
-          case 54:
-            debugPrint(">>> INICIANDO MIGRAÇÃO V54 (ESPECIES) <<<");
-            
-            // 1. SEGURANÇA: Se a tabela já existir de uma tentativa anterior, apaga ela.
-            // Isso evita o erro "Table already exists"
-            await db.execute('DROP TABLE IF EXISTS especies');
+           case 60:
+          // AQUI É A CHAVE: Forçamos a criação mesmo se já tiver tentado antes
+          debugPrint(">>> EXECUTANDO MIGRAÇÃO V60 (ESPECIES) <<<");
 
-            // 2. Cria a tabela limpa
-            await db.execute('''
-              CREATE TABLE especies (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                nome_cientifico TEXT NOT NULL,
-                nome_comum TEXT NOT NULL,
-                familia TEXT,
-                fator_forma REAL,
-                regiao TEXT
-              )
-            ''');
+          // 1. Limpa se já existir (para evitar erros em testes repetidos)
+          await db.execute('DROP TABLE IF EXISTS especies');
 
-            // 3. Adiciona a coluna 'especie' na tabela de árvores (se não existir)
-            try {
-              await db.execute('ALTER TABLE arvores ADD COLUMN especie TEXT');
-            } catch (e) {
-              debugPrint("Aviso: Coluna especie já existia ou erro ao criar: $e");
-            }
+          // 2. Cria tabela
+          await db.execute('''
+            CREATE TABLE especies (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              nome_cientifico TEXT NOT NULL,
+              nome_comum TEXT NOT NULL,
+              familia TEXT,
+              fator_forma REAL,
+              regiao TEXT
+            )
+          ''');
 
-            // 4. Popula a tabela com o CSV
-            await _popularTabelaEspecies(db);
-            break;
+          // 3. Atualiza arvores (safe check)
+          if (!await _columnExists(db, 'arvores', 'especie')) {
+             try {
+                await db.execute('ALTER TABLE arvores ADD COLUMN especie TEXT');
+             } catch (e) {
+                debugPrint("Erro ao adicionar coluna especie: $e");
+             }
+          }
+
+          // 4. Popula
+          await _popularTabelaEspecies(db);
+          break;
       }
     }
   }
@@ -633,37 +623,40 @@ class DatabaseHelper {
   }
 
   Future<void> _popularTabelaEspecies(Database db) async {
-  try {
-    final String csvData = await rootBundle.loadString('assets/data/especies.csv');
-    final List<String> linhas = const LineSplitter().convert(csvData);
-    final batch = db.batch();
-    int count = 0;
+    try {
+      final String csvData = await rootBundle.loadString('assets/data/especies.csv');
+      final List<String> linhas = const LineSplitter().convert(csvData);
+      final batch = db.batch();
+      int count = 0;
 
-    // .skip(1) para pular o cabeçalho
-    for (String linha in linhas.skip(1)) {
-      if (linha.trim().isEmpty) continue;
-      
-      var colunas = linha.split(';'); // Atenção: Seu CSV deve usar ponto e vírgula
-      
-      if (colunas.length >= 3) {
-        batch.insert('especies', {
-          'nome_cientifico': colunas[0].trim(),
-          'nome_comum': colunas[1].trim(),
-          'familia': colunas[2].trim(),
-          // Se a coluna 3 (Fator) não existir ou falhar, usa 0.5
-          'fator_forma': colunas.length > 3 ? (double.tryParse(colunas[3].replaceAll(',', '.')) ?? 0.5) : 0.5,
-          // Se a coluna 4 (Região) não existir, usa 'Cerrado'
-          'regiao': colunas.length > 4 ? colunas[4].trim() : 'Cerrado'
-        });
-        count++;
+      // Pula cabeçalho se existir
+      int startIndex = 0;
+      if (linhas.isNotEmpty && linhas[0].contains('NomeCientifico')) {
+        startIndex = 1;
       }
+
+      for (int i = startIndex; i < linhas.length; i++) {
+        String linha = linhas[i];
+        if (linha.trim().isEmpty) continue;
+        
+        var colunas = linha.split(';');
+        if (colunas.length >= 3) {
+          batch.insert('especies', {
+            'nome_cientifico': colunas[0].trim(),
+            'nome_comum': colunas[1].trim(),
+            'familia': colunas[2].trim(),
+            'fator_forma': colunas.length > 3 ? (double.tryParse(colunas[3].replaceAll(',', '.')) ?? 0.5) : 0.5,
+            'regiao': colunas.length > 4 ? colunas[4].trim() : 'Cerrado'
+          });
+          count++;
+        }
+      }
+      await batch.commit(noResult: true);
+      debugPrint("Importação concluída: $count espécies adicionadas.");
+    } catch (e) {
+      debugPrint("ERRO ao importar espécies: $e");
     }
-    await batch.commit(noResult: true);
-    debugPrint("Importação concluída: $count espécies adicionadas.");
-  } catch (e) {
-    debugPrint("ERRO CRÍTICO ao importar CSV de espécies: $e");
   }
-}
 
   Future<void> deleteDatabaseFile() async {
     if (_database != null && _database!.isOpen) {
@@ -673,9 +666,9 @@ class DatabaseHelper {
     try {
       final path = join(await getDatabasesPath(), 'geoforestv1.db');
       await deleteDatabase(path);
-      debugPrint("Banco de dados local completamente apagado com sucesso.");
+      debugPrint("Banco de dados apagado.");
     } catch (e) {
-      debugPrint("!!!!!! ERRO AO APAGAR O BANCO DE DADOS: $e !!!!!");
+      debugPrint("Erro ao apagar banco: $e");
       rethrow;
     }
   }

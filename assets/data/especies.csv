@@ -1,158 +1,242 @@
-"NomeCientifico;NomeComum;Familia;FatorForma;Regiao"
-"Pouteria torta;Abiu;Sapotaceae;0.5;Cerrado"
-"Luehea paniculata;Acoita Cavalo;Malvaceae;0.5;Cerrado"
-"Vatairea macrocarpa;Amargoso;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Pterogyne nitens;Amendoim bravo;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Acosmium subelegans;Amendoim falso;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Protium heptaphyllum;Amescla;Burseraceae;0.5;Cerrado"
-"Andira anthelmia;Angelim;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Andira vermifuga;Angelim de morcego;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Anadenanthera peregrina;Angico;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Anadenanthera columbrina;Angico branco;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Anadenanthera falcata;Angico do cerrado;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Acacia polyphylla;Angico preto;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Anadenanthera macrocarpa;Angico vermelho;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Psidium firmum;Araçá;Myrtaceae;0.5;Cerrado"
-"Annona coriacea;Araticum;Annonaceae;0.5;Cerrado"
-"Annona crassiflora;Araticum cortiça;Annonaceae;0.5;Cerrado"
-"Astronium urundeuva;Aroeira;Anacardiaceae;0.5;Cerrado"
-"Lithraea molleoides;Aroeirinha;Anacardiaceae;0.5;Cerrado"
-"Acrocomia aculeata;Bacaiuva;Arecaceae;0.5;Cerrado"
-"Diptychandra aurantiaca;Balsaminho;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Stryphnodendron adstringens;Barbatimão;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Prosopis rubriflora;Barreiro preto;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Dipteryx alata;Baru;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Eriotheca gracilipes;Bingueiro;Malvaceae;0.5;Cerrado"
-"Casearia sylvestris;Bugreiro;Salicaceae;0.5;Cerrado"
-"Mauritia flexuosa;Buriti;Arecaceae;0.5;Cerrado"
-"Rhamnidium elaeocarpus;Cabrito;Rhamnaceae;0.5;Cerrado"
-"Spondias macrocarpa;Caja;Anacardiaceae;0.5;Cerrado"
-"Anacardium humile;Cajuzinho do cerrado;Anacardiaceae;0.5;Cerrado"
-"Aloysia virgata;Cambará;Verbenaceae;0.5;Cerrado"
-"Aloysia virgata;Cambará de lixa;Verbenaceae;0.5;Cerrado"
-"Vochysia divergens;Cambara;Vochysiaceae;0.5;Cerrado"
-"Vochysia haenkeana;Cambara amarelo;Vochysiaceae;0.5;Cerrado"
-"Cupania vernalis;Camboata;Sapindaceae;0.5;Cerrado"
-"Piptocarpha rotundifolia;Candeia;Asteraceae;0.5;Cerrado"
-"Rudgea viburnoides;Canela de veado;Rubiaceae;0.5;Cerrado"
-"Miconia albicans;Canela de velho;Melastomataceae;0.5;Cerrado"
-"Nectandra cissiflora;Canela grande;Lauraceae;0.5;Cerrado"
-"Ocotea corymbosa;Canela merda;Lauraceae;0.5;Cerrado"
-"Peltophorum dubium;Canafistula;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Byrsonima orbignyana;Canjiquinha;Malpighiaceae;0.5;Cerrado"
-"Terminalia argentea;Capitão;Combretaceae;0.5;Cerrado"
-"Terminalia brasiliensis;Capitãozinho;Combretaceae;0.5;Cerrado"
-"Diospyros hispida;Caqui do mato;Ebenaceae;0.5;Cerrado"
-"Copernicia prunifera;Carnaúba;Arecaceae;0.5;Cerrado"
-"Roupala montana;Carne de vaca;Proteaceae;0.5;Cerrado"
-"Jacaranda brasiliana;Caroba;Bignoniaceae;0.5;Cerrado"
-"Callisthene fasciculata;Carvão;Vochysiaceae;0.5;Cerrado"
-"Sclerolobium paniculatum;Carvoeiro;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Calycophyllum multiflorum;Castelo;Rubiaceae;0.5;Cerrado"
-"Trichilia hirta;Catigua;Meliaceae;0.5;Cerrado"
-"Dalbergia miscolobium;Caviuna;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Machaerium hirtum;Cebolão;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Amburana cearensis;Cerejeira;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Sterculia apetala;Chicha;Sterculiaceae;0.5;Cerrado"
-"Hirtella ciliata;Chorão;Chrysobalanaceae;0.5;Cerrado"
-"Salvertia convallariaeodora;Colher de vaqueiro;Vochysiaceae;0.5;Cerrado"
-"Rollinia sylvatica;Conde do mato;Annonaceae;0.5;Cerrado"
-"Copaifera langsdorffii;Copaíba;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Mouriri elliptica;Coroa;Memecylaceae;0.5;Cerrado"
-"Senna alata;Fedegoso;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Lafoensia pacari;Dedaleiro;Lythraceae;0.5;Cerrado"
-"Cecropia pachystachya;Embauba;Urticaceae;0.5;Cerrado"
-"Bocageopsis mattogrossensis;Embira;Annonaceae;0.5;Cerrado"
-"Casearia gossypiosperma;Espeteiro;Salicaceae;0.5;Cerrado"
-"Eucalyptus sp;Eucalipto;Myrtaceae;0.5;Exotica"
-"Coccoloba mollis;Falso novateiro;Polygonaceae;0.5;Cerrado"
-"Dimorphandra mollis;Faveiro;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Ficus guaranitica;Figueira;Moraceae;0.5;Cerrado"
-"Trattinnickia rhoifolia;Formigueiro;Burseraceae;0.5;Cerrado"
-"Couepia grandiflora;Fruta de ema;Chrysobalanaceae;0.5;Cerrado"
-"Simarouba versicolor;Fruta de perdiz;Simaroubaceae;0.5;Cerrado"
-"Pouteria ramiflora;Fruta de veado;Sapotaceae;0.5;Cerrado"
-"Apuleia leiocarpa;Garapa;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Genipa americana;Genipapo;Rubiaceae;0.5;Cerrado"
-"Astronium fraxinifolium;Gonçalo;Anacardiaceae;0.5;Cerrado"
-"Hymenaea stigonocarpa;Jatobá do cerrado;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Cariniana estrellensis;Jequitibá;Lecythidaceae;0.5;Cerrado"
-"Sapium glandulosum;Leiteiro;Euphorbiaceae;0.5;Cerrado"
-"Curatella americana;Lixeira;Dilleniaceae;0.5;Cerrado"
-"Solanum lycocarpum;Lobeira;Solanaceae;0.5;Cerrado"
-"Cordia sellowiana;Loro;Boraginaceae;0.5;Cerrado"
-"Cordia trichotoma;Loro preto;Boraginaceae;0.5;Cerrado"
-"Vatairea macrocarpa;Må Leitoso;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Brosimum gaudichaudii;Mama cadela;Moraceae;0.5;Cerrado"
-"Zanthoxylum hasslerianum;Mamica;Rutaceae;0.5;Cerrado"
-"Didymopanax morototoni;Mandiocão;Araliaceae;0.5;Cerrado"
-"Austroplenckia populnea;Mangaba;Celastraceae;0.5;Cerrado"
-"Dilodendron bipinnatum;Maria pobre;Sapindaceae;0.5;Cerrado"
-"Mimosa bimucronata;Maricá;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Guarea guidonia;Marinheiro;Meliaceae;0.5;Cerrado"
-"Alibertia edulis;Marmeleiro;Rubiaceae;0.5;Cerrado"
-"Licania humilis;Marmelinho do cerrado;Chrysobalanaceae;0.5;Cerrado"
-"Annona coriacea;Marolo;Annonaceae;0.5;Cerrado"
-"Miconia cuspidata;Miconia;Melastomataceae;0.5;Cerrado"
-"Maclura tinctoria;Moreira;Moraceae;0.5;Cerrado"
-"Byrsonima coccolobifolia;Murici do cerrado;Malpighiaceae;0.5;Cerrado"
-"Diospyros burchellii;Muricizão;Ebenaceae;0.5;Cerrado"
-"Guazuma ulmifolia;Mutambo;Malvaceae;0.5;Cerrado"
-"Siparuna guianensis;Negamina;Siparunaceae;0.5;Cerrado"
-"Heteropterys tomentosa;Nó de cachorro;Malpighiaceae;0.5;Cerrado"
-"Ormosia arborea;Olho de cabra;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Cnidoscolus vitifolius;Ortiga;Euphorbiaceae;0.5;Cerrado"
-"Pseudobombax grandiflorum;Paineira;Malvaceae;0.5;Cerrado"
-"Tabebuia caraiba;Paratudo;Bignoniaceae;0.5;Cerrado"
-"Bauhinia forficata;Pata de vaca;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Sclerolobium aureum;Pau bosta;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Emmotum nitens;Pau de sobre;Icacinaceae;0.5;Cerrado"
-"Vochysia cinnamomea;Pau doce;Vochysiaceae;0.5;Cerrado"
-"Agonandra brasiliensis;Pau marfim;Opiliaceae;0.5;Cerrado"
-"Kielmeyera variabilis;Pau santo;Clusiaceae;0.5;Cerrado"
-"Qualea grandiflora;Pau terra;Vochysiaceae;0.5;Cerrado"
-"Priogymnanthus hasslerianus;Pau vidro;Oleaceae;0.5;Cerrado"
-"Tapirira guianensis;Peito de pombo;Anacardiaceae;0.5;Cerrado"
-"Apeiba tibourbou;Pente de macaco;Malvaceae;0.5;Cerrado"
-"Caryocar brasiliense;Pequi;Caryocaraceae;0.5;Cerrado"
-"Aspidosperma cylindrocarpon;Peroba a rosa;Apocynaceae;0.5;Cerrado"
-"Xylopia aromatica;Pimenta de macaco;Annonaceae;0.5;Cerrado"
-"Xylopia sericea;Pimenta;Annonaceae;0.5;Cerrado"
-"Licania parvifolia;Pimenteira pantanal;Chrysobalanaceae;0.5;Cerrado"
-"Xylopia emarginata;Pindaíba;Annonaceae;0.5;Cerrado"
-"Syagrus romanzoffiana;Pindó;Arecaceae;0.5;Cerrado"
-"Pinus sp;Pinus;Pinaceae;0.5;Exotica"
-"Eugenia uniflora;Pitangueira;Myrtaceae;0.5;Cerrado"
-"Talisia esculenta;Pitomba;Sapindaceae;0.5;Cerrado"
-"Tabebuia avellanedae;Piuva;Bignoniaceae;0.5;Cerrado"
-"Anacardium occidentale;Pomba;Anacardiaceae;0.5;Cerrado"
-"Rapanea guianensis;Pororoca;Myrsinaceae;0.5;Cerrado"
-"Strychnos pseudo-quina;Quina;Loganiaceae;0.5;Cerrado"
-"Myrocarpus frondosus;Quina morada;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Peltogyne confertiflora;Roxinho;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Sapindus saponaria;Saboeiro;Sapindaceae;0.5;Cerrado"
-"Croton urucurana;Sangra d'água;Euphorbiaceae;0.5;Cerrado"
-"Lecythis chartacea;Sapucaia;Lecythidaceae;0.5;Cerrado"
-"Leptolobium dasycarpum;Sene;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Poincianella pluviosa;Sibipiruna;Leguminosae-Caesalpinioideae;0.5;Cerrado"
-"Salacia elliptica;Siputa;Hippocrateaceae;0.5;Cerrado"
-"Styrax camporum;Stirax;Styracaceae;0.5;Cerrado"
-"Pterodon emarginatus;Sucupira branca;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Bowdichia virgilioides;Sucupira preta;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Celtis iguanaea;Talerinha;Cannabaceae;0.5;Cerrado"
-"Connarus suberosus;Tamanco;Connaraceae;0.5;Cerrado"
-"Crataeva tapia;Tapia;Capparaceae;0.5;Cerrado"
-"Mezilaurus navalium;Tapinhoã;Lauraceae;0.5;Cerrado"
-"Vitex montevidensis;Tarumã;Lamiaceae;0.5;Cerrado"
-"Buchenavia tomentosa;Tarumarana;Combretaceae;0.5;Cerrado"
-"Magonia pubescens;Tigui do cerrado;Sapindaceae;0.5;Cerrado"
-"Serjonia erecta;Timbo;Sapindaceae;0.5;Cerrado"
-"Enterolobium contortisiliquum;Timboril;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Erythrina mulungu;Tiriceiro;Leguminosae-Papilionoideae;0.5;Cerrado"
-"Esenbeckia febrifuga;Tres folhas;Rutaceae;0.5;Cerrado"
-"Mimosa artemisiana;Unha de gato;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Vernonia discolor;Veludeiro;Asteraceae;0.5;Cerrado"
-"Hirtella glandulosa;Vermelhão;Chrysobalanaceae;0.5;Cerrado"
-"Plathymenia reticulata;Vinhatico;Leguminosae-Mimosoideae;0.5;Cerrado"
-"Virola sebifera;Xilopão;Myristicaceae;0.5;Cerrado"
-"Xylopia grandiflora;Ximb uva;Leguminosae-Mimosoideae;0.5;Cerrado"
+NomeCientifico;NomeComum;Familia;FatorForma;Regiao
+Pouteria torta;Abiu;Sapotaceae;0,5;Cerrado
+Pouteria torta;Abiu do cerrado;Sapotaceae;0,5;Cerrado
+Luehea paniculata;A oita Cavalo;Malvaceae;0,5;Cerrado
+Vatairea macrocarpa;Amargoso;Leguminosae-Papilionoideae;0,5;Cerrado
+Pterogyne nitens;Amendoim bravo;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Acosmium subelegans;Amendoim falso;Leguminosae-Papilionoideae;0,5;Cerrado
+Protium heptaphyllum;Amescla;Burseraceae;0,5;Cerrado
+Andira anthelmia;Angelim;Leguminosae-Papilionoideae;0,5;Cerrado
+Andira anthelmia;Angelim de morcego;Leguminosae-Papilionoideae;0,5;Cerrado
+Anadenanthera peregrina;Angico;Leguminosae-Mimosoideae;0,5;Cerrado
+Anadenanthera columbrina;Angico branco;Leguminosae-Mimosoideae;0,5;Cerrado
+Anadenanthera falcata;Angico do cerrado;Leguminosae-Mimosoideae;0,5;Cerrado
+Acacia polyphylla;Angico preto;Leguminosae-Mimosoideae;0,5;Cerrado
+Anadenanthera macrocarpa;Angico vermelho;Leguminosae-Mimosoideae;0,5;Cerrado
+Psidium firmum;Ara  ;Myrtaceae;0,5;Cerrado
+Annona coriacea;Araticum;Annonaceae;0,5;Cerrado
+Annona crassiflora;Araticum corti a;Annonaceae;0,5;Cerrado
+Annona crassiflora;Araticum do cerrado;Annonaceae;0,5;Cerrado
+Annona coriacea;Araticum do mato;Annonaceae;0,5;Cerrado
+Astronium urundeuva ;Aroeira;Anacardiaceae;0,5;Cerrado
+Lithraea molleoides;Aroeirinha;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Annona cornifolia;Ata;Annonaceae;0,5;Cerrado
+Acrocomia aculeata;Bacaiuva;Arecaceae;0,5;Cerrado
+Diptychandra aurantiaca;Balsaminho;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Diptychandra aurantiaca;Balsimi;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Stryphnodendron adstringens;Barbatim o;Leguminosae-Mimosoideae;0,5;Cerrado
+Prosopis rubriflora;Barreiro preto;Leguminosae-Mimosoideae;0,5;Cerrado
+Dipteryx alata;Baru;Leguminosae-Papilionoideae;0,5;Cerrado
+Eriotheca gracilipes;Bingueiro;Malvaceae;0,5;Cerrado
+Casearia sylvestris;Bugreiro;Salicaceae;0,5;Cerrado
+Mauritia flexuosa;Buriti;Arecaceae;0,5;Cerrado
+Rhamnidium elaeocarpus;Cabrito;Rhamnaceae;0,5;Cerrado
+Casearia sylvestris;Cafezinho do mato;Salicaceae;0,5;Cerrado
+Spondias macrocarpa;Caja;Anacardiaceae;0,5;Cerrado
+Anacardium humile;Cajuzinho do cerrado;Anacardiaceae;0,5;Cerrado
+Aloysia virgata;Camar ;Verbenaceae;0,5;Cerrado
+Aloysia virgata;Camar  de lixa;Verbenaceae;0,5;Cerrado
+Vochysia divergens;Cambara;Vochysiaceae;0,5;Cerrado
+Vochysia haenkeana;Cambara amarelo;Vochysiaceae;0,5;Cerrado
+Cupania vernalis;Camboata;Sapindaceae;0,5;Cerrado
+Piptocarpha rotundifolia;Candeia;Asteraceae;0,5;Cerrado
+Helietta apiculata;Canela de veado;Rutaceae;0,5;Cerrado
+Miconia albicans;Canela de velho;Melastomataceae;0,5;Cerrado
+Nectandra cissiflora;Canela grande;Lauraceae;0,5;Cerrado
+Ocotea corymbosa;Canela merda;Lauraceae;0,5;Cerrado
+Ocotea corymbosa;Canela preta;Lauraceae;0,5;Cerrado
+Peltophorum dubium;Canfistula;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Byrsonima orbignyana;Canjiquinha;Malpighiaceae;0,5;Cerrado
+Terminalia argentia;Capit o;Combretaceae;0,5;Cerrado
+Terminalia brasiliensis;Capit ozinho;Combretaceae;0,5;Cerrado
+Diospyros hispida;Caqui do mato;Ebenaceae;0,5;Cerrado
+Copernicia prunifera;Caranda;Arecaceae;0,5;Cerrado
+Roupala montana ;Carne de vaca;Proteaceae;0,5;Cerrado
+Jacaranda brasiliana;Caroba;Bignoniaceae;0,5;Cerrado
+Callisthene fasciculata;Carv o;Vochysiaceae;0,5;Cerrado
+Diptychandra aurantiaca;Carv o vermelho;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Sclerolobium paniculatum;Carvoeiro;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Calycophyllum multiflorum;Castelo;Rubiaceae;0,5;Cerrado
+Trichilia hirta;Catigua;Meliaceae;0,5;Cerrado
+Dalbergia miscolobium;Caviuna;Leguminosae-Papilionoideae;0,5;Cerrado
+Machaerium hirtum;Cebol o;Leguminosae-Papilionoideae;0,5;Cerrado
+Amburana cearensis;Cerejeira/amburana;Leguminosae-Papilionoideae;0,5;Cerrado
+Sterculia apetala;Chicha;Sterculiaceae;0,5;Cerrado
+Hirtella ciliata;Chor o;Chrysobalanaceae;0,5;Cerrado
+Piptocarpha rotundifolia;Cinzeiro;Asteraceae;0,5;Cerrado
+Cipo;Cip ;Cipo;0,5;Cerrado
+Salvertia convallariaeodora;Colher de vaqueiro;Vochysiaceae;0,5;Cerrado
+Rollinia sylvatica;Conde do mato;Annonaceae;0,5;Cerrado
+Copaifera langsdorffii;Copa ba;Leguminosae-Papilionoideae;0,5;Cerrado
+Mouriri elliptica;Coroa;Memecylaceae;0,5;Cerrado
+Mouriri elliptica;Croada;Memecylaceae;0,5;Cerrado
+Dipteryx alata;Cumbaru;Leguminosae-Papilionoideae;0,5;Cerrado
+Lafoensia pacari;Dedaleiro;Lythraceae;0,5;Cerrado
+Lafoensia pacari;Didal;Lythraceae;0,5;Cerrado
+Cecropia pachystachya;Embauba;Urticaceae;0,5;Cerrado
+Bocageopsis mattogrossensis;Embira;Annonaceae;0,5;Cerrado
+Casearia gossypiosperma;Espeteiro;Salicaceae;0,5;Cerrado
+Eucalyptus sp;Eucalipto;Myrtaceae;0,5;Cerrado
+Coccoloba mollis;Falso novateiro;Polygonaceae;0,5;Cerrado
+Dimorphandra mollis;Faveiro;Leguminosae-Mimosoideae;0,5;Cerrado
+Ficus guaranitica;Figueira;Moraceae;0,5;Cerrado
+Triplaris brasiliana;Formigueiro;Polygonaceae;0,5;Cerrado
+Couepia grandiflora;Fruta de ema;Chrysobalanaceae;0,5;Cerrado
+Simarouba versicolor;Fruta de perdiz;Simaroubaceae;0,5;Cerrado
+Pouteria ramiflora;Fruta de veado;Sapotaceae;0,5;Cerrado
+Apuleia leiocarpa;Garapa;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Acosmium subelegans;Genciana;Leguminosae-Papilionoideae;0,5;Cerrado
+Genipa americana;Genipapo;Rubiaceae;0,5;Cerrado
+Astronium fraxinifolium;Gon alo;Anacardiaceae;0,5;Cerrado
+Brachiaria humidicola;Gra Agulha;Graminea;0,5;Cerrado
+Baccharis dracunculifolia;Gra Alecrim;Graminea;0,5;Cerrado
+Digitaria insularis;Gra Amargoso;Graminea;0,5;Cerrado
+Andropogon bicornis;Gra Braquiar o;Graminea;0,5;Cerrado
+Brachiaria brizantha;Gra Braquiaria;Graminea;0,5;Cerrado
+Senna obtusifolia;Gra Capim 1;Graminea;0,5;Cerrado
+Andropogon fastigiatus Sw;Gra Capim-andropogom;Graminea;0,5;Cerrado
+Saccharum asperum (Nees) Steud.;Gra Capim-macega-estaladeira-branca;Graminea;0,5;Cerrado
+Andropogon leocostachus Kunt;Gra Capim-membeca;Graminea;0,5;Cerrado
+Cenchrus echinatus;Gra Carrapixo;Graminea;0,5;Cerrado
+Sporobolus indicus;Gra Cerdinha;Graminea;0,5;Cerrado
+Cenchrus polystachios;Gra Espiga;Graminea;0,5;Cerrado
+Solanum palinacanthum;Gra Espinho;Graminea;0,5;Cerrado
+Eragrostis neesii;Gra Flecha;Graminea;0,5;Cerrado
+Sida sp.;Gra Ganchuma;Graminea;0,5;Cerrado
+Paspalum notatum;Gra Grama;Graminea;0,5;Cerrado
+Stylosantes capitata;Gra Grama flor;Graminea;0,5;Cerrado
+Paspalum oteroi Swallen;Gra Grama-tio-pedro;Graminea;0,5;Cerrado
+Mimosa sp.;Gra Malicia;Graminea;0,5;Cerrado
+Gymnopogon foliosus;Gra P  de galinha;Graminea;0,5;Cerrado
+Bidens pilosa;Gra Pic o;Graminea;0,5;Cerrado
+Fimbristylis autumnalis;Gra Salom o;Graminea;0,5;Cerrado
+Cyperus odoratus;Gra Tiririca;Graminea;0,5;Cerrado
+Aristida adscensionis;Gra Vassourinha;Graminea;0,5;Cerrado
+Patagonula americana;Guajuvira;Boraginaceae;0,5;Cerrado
+Myrcia rostrata;Guamirim da folha mi da;Myrtaceae;0,5;Cerrado
+Calophyllum brasiliensis ;Guanandi;Clusiaceae;0,5;Cerrado
+Aspidosperma subincanum;Guatambu;Apocynaceae;0,5;Cerrado
+Aspidosperma macrocarpon;Guatambu branco;Apocynaceae;0,5;Cerrado
+Aspidosperma macrocarpon;Guatambu do cerrado;Apocynaceae;0,5;Cerrado
+Campomanesia adamantium;Guavira;Myrtaceae;0,5;Cerrado
+Inga edulis;Inga;Leguminosae-Mimosoideae;0,5;Cerrado
+Inga edulis;Inga amarelo;Leguminosae-Mimosoideae;0,5;Cerrado
+Inga laurina;Inga branco;Leguminosae-Mimosoideae;0,5;Cerrado
+Samanea tubulosa;Inga seco;Leguminosae-Mimosoideae;0,5;Cerrado
+Inga sessilis;Inga vermelho;Leguminosae-Mimosoideae;0,5;Cerrado
+Tabebuia ochracea;Ip  amarelo;Bignoniaceae;0,5;Cerrado
+Tabebuia roseo-alba;Ip  branco;Bignoniaceae;0,5;Cerrado
+Tabebuia ochracea;Ip  do cerrado;Bignoniaceae;0,5;Cerrado
+Artocarpus heterophyllus;Jaca;Moraceae;0,5;Cerrado
+Machaerium acustifolium;Jacaranda;Leguminosae-Papilionoideae;0,5;Cerrado
+Machaerium acustifolium;Jacaranda bico de pato;Leguminosae-Papilionoideae;0,5;Cerrado
+Machaerium acustifolium;Jacaranda do campo;Leguminosae-Papilionoideae;0,5;Cerrado
+Hymenaea stigonocarpa;Jatob ;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Hymenaea stigonocarpa;Jatob  do cerrado;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Cariniana estrellensis;Jequitiba;Lecythidaceae;0,5;Cerrado
+Piptocarpha rotundifolia;Laranjinha;Asteraceae;0,5;Cerrado
+Sapium glandulosum;Leiteiro;Euphorbiaceae;0,5;Cerrado
+Salvertia convallariaeodora;Liana;Vochysiaceae;0,5;Cerrado
+Curatella americana;Lixeira;Dilleniaceae;0,5;Cerrado
+Curatella americana;Lixeirinha;Dilleniaceae;0,5;Cerrado
+Solanum lycocarpum;Lobeira;Solanaceae;0,5;Cerrado
+Cordia sellowiana;Loro;Boraginaceae;0,5;Cerrado
+Cordia trichotoma;Loro preto;Boraginaceae;0,5;Cerrado
+Vatairea macrocarpa;M  Leitoso;Leguminosae-Papilionoideae;0,5;Cerrado
+Brosimum gaudichaudii;Mama cadela;Moraceae;0,5;Cerrado
+Zanthoxylum hasslerianum;Mamica;Rutaceae;0,5;Cerrado
+Didymopanax morototoni;Mandioc o;Araliaceae;0,5;Cerrado
+Austroplenckia populnea;Mangaba;Celastraceae;0,5;Cerrado
+Austroplenckia populnea;Mangabeira brava;Celastraceae;0,5;Cerrado
+Dilodendron bipinnatum;Maria pobre;Sapindaceae;0,5;Cerrado
+Mimosa bimucronata;Maric ;Leguminosae-Mimosoideae;0,5;Cerrado
+Guarea guidonia;Marinheiro;Meliaceae;0,5;Cerrado
+Alibertia edulis;Marmeleiro;Rubiaceae;0,5;Cerrado
+Licania humilis;Marmelinho do cerrado;Chrysobalanaceae;0,5;Cerrado
+Alibertia edulis;Marmelo;Rubiaceae;0,5;Cerrado
+Alibertia edulis;Marmelo de cavalo;Rubiaceae;0,5;Cerrado
+Annona coriacea;Marolo;Annonaceae;0,5;Cerrado
+Simarouba versicolor;Mata cachorro;Simaroubaceae;0,5;Cerrado
+Miconia cuspidata;Miconia;Melastomataceae;0,5;Cerrado
+Salvertia convallariaeodora;Moliana;Vochysiaceae;0,5;Cerrado
+Andira anthelmia;Morcegueiro;Leguminosae-Papilionoideae;0,5;Cerrado
+Maclura tinctoria;Moreira;Moraceae;0,5;Cerrado
+Morta - N o identificada;Morta - N o identificada;Morta - N o identificada;0,5;Cerrado
+Byrsonima basiloba;Murici;Malpighiaceae;0,5;Cerrado
+Byrsonima coccolobifolia;Murici do cerrado;Malpighiaceae;0,5;Cerrado
+Diospyros burchellii;Muriciz o;Ebenaceae;0,5;Cerrado
+Byrsonima basiloba;Muricizeiro;Malpighiaceae;0,5;Cerrado
+Guazuma ulmifolia;Mutambo;Malvaceae;0,5;Cerrado
+Siparuna guianesis;Negamina;Siparunaceae;0,5;Cerrado
+Heteropterys tomentosa;N  de cachorro;Malpighiaceae;0,5;Cerrado
+Ormosia arborea;Olho de cabra;Leguminosae-Papilionoideae;0,5;Cerrado
+Cnidoscolus vitifolius;Ortiga;Euphorbiaceae;0,5;Cerrado
+Pseudobombax grandiflorum;Paineira;Malvaceae;0,5;Cerrado
+Tabebuia caraiba;Paratudo;Bignoniaceae;0,5;Cerrado
+Bauhinia forficata;Pata de vaca;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Sclerolobium aureum;Pau bosta;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Emmotum nitens;Pau de sobre;Icacinaceae;0,5;Cerrado
+Vochysia cinnamomea;Pau doce;Vochysiaceae;0,5;Cerrado
+Agonandra brasiliensis;Pau marfim;Opiliaceae;0,5;Cerrado
+Copaifera langsdorffii;Pau oleo;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Tabebuia caraiba;Pau paratudo;Bignoniaceae;0,5;Cerrado
+Kielmeyera variabilis;Pau santo;Clusiaceae;0,5;Cerrado
+Qualea grandiflora;Pau terra;Vochysiaceae;0,5;Cerrado
+Qualea grandiflora;Pau terra comum;Vochysiaceae;0,5;Cerrado
+Qualea dichotoma;Pau terra da mata;Vochysiaceae;0,5;Cerrado
+Qualea multiflora;Pau terra liso;Vochysiaceae;0,5;Cerrado
+Qualea parviflora;Pau terra mirim;Vochysiaceae;0,5;Cerrado
+Qualea parviflora;Pau terrinha;Vochysiaceae;0,5;Cerrado
+Priogymnanthus hasslerianus;Pau vidro;Oleaceae;0,5;Cerrado
+Tapirira guianensis;Peito de pombo;Anacardiaceae;0,5;Cerrado
+Apeiba tibourbou;Pente de macaco;Malvaceae;0,5;Cerrado
+Caryocar brasiliense;Pequi;Caryocaraceae;0,5;Cerrado
+Simarouba versicolor;Perdiz;Simaroubaceae;0,5;Cerrado
+Aspidosperma cylindrocarpon;Peroba a rosa;Apocynaceae;0,5;Cerrado
+Xylopia aromatica;Pimenta de macaco;Annonaceae;0,5;Cerrado
+Xylopia aromatica;Pimenteira;Annonaceae;0,5;Cerrado
+Licania parvifolia;Pimenteira pantanal;Chrysobalanaceae;0,5;Cerrado
+Xylopia emarginata;Pinda ba;Annonaceae;0,5;Cerrado
+Syagrus romanzoffiana;Pind ;Arecaceae;0,5;Cerrado
+Pinus sp;Pinus;Pinaceae;0,5;Cerrado
+Eugenia uniflora;Pitangueira;Myrtaceae;0,5;Cerrado
+Talisia esculenta;Pitomba;Sapindaceae;0,5;Cerrado
+Tabebuia avellanedae;Piuva;Bignoniaceae;0,5;Cerrado
+Miconia cuspidata;Pixirica/Pixiric o;Melastomataceae;0,5;Cerrado
+Tapirira guianensis;Pombo;Anacardiaceae;0,5;Cerrado
+Rapanea guianensis;Pororoca;Myrsinaceae;0,5;Cerrado
+Strychnos pseudo-quina;Quina;Loganiaceae;0,5;Cerrado
+Strychnos pseudo-quina;Quina do cerrado;Loganiaceae;0,5;Cerrado
+Vochysia cinnamomea;Quina doce;Vochysiaceae;0,5;Cerrado
+Myrocarpus frondosus;Quina morada;Leguminosae-Papilionoideae;0,5;Cerrado
+Agonandra brasiliensis;Quinze cuia;Opiliaceae;0,5;Cerrado
+Peltogyne confertiflora;Roxinho;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Sapindus saponaria;Saboeiro;Sapindaceae;0,5;Cerrado
+Croton urucurana;Sangra d' gua;Euphorbiaceae;0,5;Cerrado
+Lecythis chartacea;Sapucaia;Lecythidaceae;0,5;Cerrado
+Leptolobium dasycarpum;Sena;Leguminosae-Papilionoideae;0,5;Cerrado
+Poincianella pluviosa;Sibipiruna;Leguminosae-Caesalpinoideae;0,5;Cerrado
+Salacia elliptica;Siputa;Hippocrateaceae;0,5;Cerrado
+Emmotum nitens;Sobre;Icacinaceae;0,5;Cerrado
+Styrax camporum;Stirax;Styracaceae;0,5;Cerrado
+Pterodon emarginatus;Sucupira branca;Leguminosae-Papilionoideae;0,5;Cerrado
+Bowdichia virgilioides;Sucupira preta;Leguminosae-Papilionoideae;0,5;Cerrado
+Celtis iguanaea;Talerinha;Cannabaceae;0,5;Cerrado
+Connarus suberosus;Tamanco;Connaraceae;0,5;Cerrado
+Crataeva tapia;Tapia;Capparaceae;0,5;Cerrado
+Mezilaurus navalium;Tapinho ;Lauraceae;0,5;Cerrado
+Vitex montevidensis;Tarum ;Lamiaceae;0,5;Cerrado
+Buchenavia tomentosa;Tarumarana;Combretaceae;0,5;Cerrado
+Magonia pubescens;Tigui do cerrado;Sapindaceae;0,5;Cerrado
+Magonia pubescens;Timbo;Sapindaceae;0,5;Cerrado
+Enterolobium contortisiliquum;Timbori do cerrado;Leguminosae-Mimosoideae;0,5;Cerrado
+Enterolobium contortisiliquum;Timboril/Timbouva;Leguminosae-Mimosoideae;0,5;Cerrado
+Erythrina mulungu;Tiriceiro;Leguminosae-Papilionoideae;0,5;Cerrado
+Esenbeckia febrifuga;Tres folhas;Rutaceae;0,5;Cerrado
+Leptolobium dasycarpum;Unha de anta;Leguminosae-Papilionoideae;0,5;Cerrado
+Mimosa claussenii;Unha de gato;Leguminosae-Mimosoideae;0,5;Cerrado
+Vernonia discolor;Vassoura;Asteraceae;0,5;Cerrado
+Hirtella glandulosa;Vermelh o;Chrysobalanaceae;0,5;Cerrado
+Plathymenia reticulata;Vinhatico;Leguminosae-Mimosoideae;0,5;Cerrado
+Virala sebifera;Xilop o;Miristicaceae;0,5;Cerrado
+Enterolobium contortisiliquum;Ximbuva;Leguminosae-Mimosoideae;0,5;Cerrado
