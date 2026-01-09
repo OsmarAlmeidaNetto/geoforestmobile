@@ -8,6 +8,8 @@ import 'package:geoforestv1/widgets/arvore_dialog.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:geoforestv1/pages/dashboard/dashboard_page.dart';
 import 'package:geoforestv1/data/repositories/parcela_repository.dart';
+import 'package:geoforestv1/data/repositories/projeto_repository.dart';
+
 
 
 class InventarioPage extends StatefulWidget {
@@ -22,6 +24,9 @@ class InventarioPage extends StatefulWidget {
 class _InventarioPageState extends State<InventarioPage> {
   final _validationService = ValidationService();
   final _parcelaRepository = ParcelaRepository();
+  final _projetoRepository = ProjetoRepository();
+  String _projetoNome = "GeoForest Analytics";
+  
 
   late Parcela _parcelaAtual;
   List<Arvore> _arvoresColetadas = [];
@@ -43,6 +48,18 @@ class _InventarioPageState extends State<InventarioPage> {
   }
 
   Future<bool> _configurarStatusDaTela() async {
+    // Busca o nome do projeto para usar na marca d'água da foto
+    if (_parcelaAtual.projetoId != null) {
+      try {
+        final proj = await _projetoRepository.getProjetoById(_parcelaAtual.projetoId!);
+        if (proj != null) {
+          _projetoNome = proj.nome;
+        }
+      } catch (e) {
+        debugPrint("Erro ao carregar nome do projeto: $e");
+      }
+    }
+
     if ((_parcelaAtual.status == StatusParcela.concluida || _parcelaAtual.status == StatusParcela.exportada) && _arvoresColetadas.isNotEmpty) {
       _isReadOnly = true;
     } else {
@@ -357,11 +374,8 @@ class _InventarioPageState extends State<InventarioPage> {
 
   // >>> ATUALIZAÇÃO 1: PASSAR O FLAG BIO PARA O DIÁLOGO (NOVO) <<<
   Future<void> _adicionarNovaArvore({Arvore? arvoreInicial, bool isFusteAdicional = false}) async {
-    bool isBio = false;
-    if (_parcelaAtual.atividadeTipo != null) {
-      isBio = _parcelaAtual.atividadeTipo!.toUpperCase().contains('BIO');
-    }
-
+    bool isBio = _parcelaAtual.atividadeTipo?.toUpperCase().contains('BIO') ?? false;
+    
     _arvoresColetadas.sort((a, b) {
       int compLinha = a.linha.compareTo(b.linha);
       if (compLinha != 0) return compLinha;
@@ -399,7 +413,7 @@ class _InventarioPageState extends State<InventarioPage> {
         isAdicionandoFuste: isFusteAdicional,
         isBio: isBio,
         // --- PARÂMETROS PARA A FOTO (CORRIGIDO) ---
-        projetoNome: "GeoForest Analytics", 
+        projetoNome: _projetoNome,
         fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
         talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
         idParcela: _parcelaAtual.idParcela,
@@ -412,23 +426,21 @@ class _InventarioPageState extends State<InventarioPage> {
   }
 
   Future<void> _abrirFormularioParaEditar(Arvore arvore) async {
-    bool isBio = false;
-    if (_parcelaAtual.atividadeTipo != null) {
-      isBio = _parcelaAtual.atividadeTipo!.toUpperCase().contains('BIO');
-    }
-
+    bool isBio = _parcelaAtual.atividadeTipo?.toUpperCase().contains('BIO') ?? false;
+   
     final int indexOriginal = _arvoresColetadas.indexOf(arvore);
     if (indexOriginal == -1) return;
 
     final result = await showDialog<DialogResult>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => ArvoreDialog(
-        arvoreParaEditar: arvore,
-        linhaAtual: arvore.linha,
-        posicaoNaLinhaAtual: arvore.posicaoNaLinha,
-        isBio: isBio,
-        projetoNome: "Bio Forest", // Ideal passar o nome real aqui
+  context: context,
+  barrierDismissible: false,
+  builder: (context) => ArvoreDialog(
+    arvoreParaEditar: arvore, // ou arvoreTemplate
+    linhaAtual: arvore.linha,
+    posicaoNaLinhaAtual: arvore.posicaoNaLinha,
+    isBio: isBio,
+    // --- NOVOS PARÂMETROS OBRIGATÓRIOS ---
+     projetoNome: _projetoNome,
         fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
         talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
         idParcela: _parcelaAtual.idParcela,
@@ -719,6 +731,8 @@ class _InventarioPageState extends State<InventarioPage> {
     );
   }
 }
+
+//// Aqui
 
 class _HeaderCell extends StatelessWidget {
    final String text;

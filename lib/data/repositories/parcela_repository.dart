@@ -38,10 +38,10 @@ class ParcelaRepository {
         }
       }
 
-      // CORREÇÃO: Você deve incluir o tipoDetectado aqui!
+      // ATUALIZAÇÃO: Passando o tipoDetectado para o objeto
       Parcela parcelaModificavel = p.copyWith(
         isSynced: false,
-        atividadeTipo: tipoDetectado, // <--- ADICIONAR ISSO
+        atividadeTipo: tipoDetectado, // <--- O VS CODE vai parar de reclamar aqui
       );
 
       final pMap = parcelaModificavel.toMap();

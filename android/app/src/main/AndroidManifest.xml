@@ -16,6 +16,7 @@
         android:label="Geo Forest Analytics"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
+        android:largeHeap="true"
         android:requestLegacyExternalStorage="true"
         android:allowBackup="false">
         <activity

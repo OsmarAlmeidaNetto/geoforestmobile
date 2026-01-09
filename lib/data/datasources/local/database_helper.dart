@@ -586,7 +586,7 @@ class DatabaseHelper {
           break;
            case 60:
           // AQUI É A CHAVE: Forçamos a criação mesmo se já tiver tentado antes
-          debugPrint(">>> EXECUTANDO MIGRAÇÃO V62 (ESPECIES) <<<");
+          debugPrint(">>> EXECUTANDO MIGRAÇÃO V60 (ESPECIES) <<<");
 
           // 1. Limpa se já existir (para evitar erros em testes repetidos)
           await db.execute('DROP TABLE IF EXISTS especies');
@@ -628,15 +628,24 @@ class DatabaseHelper {
           }
           break;
         case 62:
-          debugPrint(">>> EXECUTANDO MIGRAÇÃO V62 (Adicionando fotos na árvore) <<<");
+          debugPrint(">>> EXECUTANDO MIGRAÇÃO V62 (Adicionando fotos na árvore e parcela) <<<");
+          
+          // Garante foto na ÁRVORE (Individual)
           if (!await _columnExists(db, DbArvores.tableName, DbArvores.photoPaths)) {
             try {
               await db.execute('ALTER TABLE ${DbArvores.tableName} ADD COLUMN ${DbArvores.photoPaths} TEXT');
-            } catch (e) {
-              debugPrint("Erro ao adicionar coluna photoPaths: $e");
-            }
+              debugPrint("Coluna photoPaths adicionada em ARVORES.");
+            } catch (e) { debugPrint("Erro em Arvores: $e"); }
           }
-          break;        
+
+          // Garante foto na PARCELA (Geral)
+          if (!await _columnExists(db, DbParcelas.tableName, DbParcelas.photoPaths)) {
+            try {
+              await db.execute('ALTER TABLE ${DbParcelas.tableName} ADD COLUMN ${DbParcelas.photoPaths} TEXT');
+              debugPrint("Coluna photoPaths adicionada em PARCELAS.");
+            } catch (e) { debugPrint("Erro em Parcelas: $e"); }
+          }
+          break;       
       }
     }
   }

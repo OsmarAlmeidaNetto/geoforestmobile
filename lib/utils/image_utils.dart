@@ -8,7 +8,11 @@ class _ImagePayload {
   final String pathOriginal;
   final List<String> linhasMarcaDagua;
   final String nomeArquivoFinal;
-  _ImagePayload({required this.pathOriginal, required this.linhasMarcaDagua, required this.nomeArquivoFinal});
+  _ImagePayload({
+    required this.pathOriginal, 
+    required this.linhasMarcaDagua, 
+    required this.nomeArquivoFinal
+  });
 }
 
 class ImageUtils {
@@ -24,54 +28,74 @@ class ImageUtils {
         nomeArquivoFinal: nomeArquivoFinal,
       );
 
-      // Usamos compute para não travar a UI
+      // O 'compute' executa o processamento pesado em uma Isolate separada
       final Uint8List? bytesFinais = await compute(_processarImagemNoFundo, payload);
 
       if (bytesFinais != null) {
+        // O salvamento na galeria DEVE ser feito na thread principal (fora do compute)
         await Gal.putImageBytes(bytesFinais, name: nomeArquivoFinal);
+        debugPrint("Foto processada e salva com sucesso: $nomeArquivoFinal");
         return pathOriginal;
       }
       return "";
     } catch (e) {
-      debugPrint("ERRO CRÍTICO NO PROCESSAMENTO: $e");
+      debugPrint("ERRO CRÍTICO NO PROCESSAMENTO DE IMAGEM: $e");
       return "";
     }
   }
 }
 
-// ESTA FUNÇÃO DEVE FICAR FORA DA CLASSE OU SER TOP-LEVEL PARA MELHOR PERFORMANCE
+// FUNÇÃO TOP-LEVEL (Fora da classe) para performance máxima do Isolate
 Uint8List? _processarImagemNoFundo(_ImagePayload payload) {
   try {
     final File file = File(payload.pathOriginal);
     if (!file.existsSync()) return null;
     
-    final Uint8List bytes = file.readAsBytesSync();
-    img.Image? image = img.decodeImage(bytes);
+    final Uint8List inputBytes = file.readAsBytesSync();
+    
+    // Decodifica a imagem
+    img.Image? image = img.decodeImage(inputBytes);
     if (image == null) return null;
 
-    // Redimensiona se a imagem ainda for muito grande (Segurança Extra de RAM)
-    if (image.width > 1200) {
-      image = img.copyResize(image, width: 1200);
+    // Redimensionamento agressivo para preservar RAM (800px é o ponto ideal)
+    if (image.width > 800 || image.height > 800) {
+      image = img.copyResize(image, width: 800);
     }
 
-    final int alturaLinha = 30;
-    final int alturaFaixa = (payload.linhasMarcaDagua.length * alturaLinha) + 20;
+    // Configuração da marca d'água
+    final int alturaLinha = 25; 
+    final int alturaFaixa = (payload.linhasMarcaDagua.length * alturaLinha) + 15;
 
-    img.fillRect(image, 
-      x1: 0, y1: image.height - alturaFaixa, 
-      x2: image.width, y2: image.height, 
-      color: img.ColorRgba8(0, 0, 0, 160)
+    // Desenha a faixa de fundo (Preto sólido gasta menos processamento que transparente)
+    img.fillRect(
+      image, 
+      x1: 0, 
+      y1: image.height - alturaFaixa, 
+      x2: image.width, 
+      y2: image.height, 
+      color: img.ColorRgb8(0, 0, 0)
     );
 
+    // Escreve as linhas de texto
     for (int i = 0; i < payload.linhasMarcaDagua.length; i++) {
-      int yPos = (image.height - alturaFaixa) + (i * alturaLinha) + 10;
-      img.drawString(image, payload.linhasMarcaDagua[i], 
-        font: img.arial24, x: 15, y: yPos, 
+      int yPos = (image.height - alturaFaixa) + (i * alturaLinha) + 5;
+      img.drawString(
+        image, 
+        payload.linhasMarcaDagua[i], 
+        font: img.arial14, // Fonte pequena mas legível para 800px
+        x: 10, 
+        y: yPos, 
         color: img.ColorRgb8(255, 255, 255)
       );
     }
 
-    return Uint8List.fromList(img.encodeJpg(image, quality: 75)); // Qualidade 75 economiza mais RAM
+    // Codifica para JPG com qualidade moderada
+    final Uint8List output = Uint8List.fromList(img.encodeJpg(image, quality: 60));
+    
+    // Limpeza manual para ajudar o Garbage Collector
+    image = null; 
+    
+    return output;
   } catch (e) {
     return null;
   }

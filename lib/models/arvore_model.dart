@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:geoforestv1/data/datasources/local/database_constants.dart';
-
+import 'package:flutter/foundation.dart'; // Para o debugPrint
 
 enum Codigo {
   Normal, Falha, Bifurcada, Multipla, Quebrada, Caida, Dominada, Geada, Fogo,
@@ -34,7 +34,7 @@ class Arvore {
   final double? capAuditoria;
   final double? alturaAuditoria;
   double? volume;
-  final List<String> photoPaths; // <--- NOVO
+  final List<String> photoPaths; // <--- Lista de caminhos das fotos
   final DateTime? lastModified;
 
   Arvore({
@@ -42,7 +42,7 @@ class Arvore {
     required this.posicaoNaLinha, this.fimDeLinha = false, this.dominante = false,
     required this.codigo, this.codigo2, this.codigo3, this.especie, this.tora,
     this.capAuditoria, this.alturaAuditoria, this.volume, 
-    this.photoPaths = const [], // <--- NOVO
+    this.photoPaths = const [], 
     this.lastModified,
   });
 
@@ -50,7 +50,7 @@ class Arvore {
     int? id, double? cap, double? altura, double? alturaDano, int? linha,
     int? posicaoNaLinha, bool? fimDeLinha, bool? dominante, Codigo? codigo,
     Codigo2? codigo2, String? codigo3, String? especie, int? tora, double? capAuditoria,
-    double? alturaAuditoria, double? volume, List<String>? photoPaths, // <--- NOVO
+    double? alturaAuditoria, double? volume, List<String>? photoPaths,
     DateTime? lastModified,
   }) {
     return Arvore(
@@ -63,7 +63,7 @@ class Arvore {
       capAuditoria: capAuditoria ?? this.capAuditoria,
       alturaAuditoria: alturaAuditoria ?? this.alturaAuditoria,
       volume: volume ?? this.volume, 
-      photoPaths: photoPaths ?? this.photoPaths, // <--- NOVO
+      photoPaths: photoPaths ?? this.photoPaths,
       lastModified: lastModified ?? this.lastModified,
     );
   }
@@ -85,7 +85,8 @@ class Arvore {
       DbArvores.tora: tora,
       DbArvores.capAuditoria: capAuditoria,
       DbArvores.alturaAuditoria: alturaAuditoria,
-      'photoPaths': jsonEncode(photoPaths), // <--- NOVO (Salva como JSON string no SQLite)
+      // Salva como String JSON no SQLite
+      DbArvores.photoPaths: jsonEncode(photoPaths), 
       DbArvores.lastModified: lastModified?.toIso8601String(),
     };
   }
@@ -97,15 +98,19 @@ class Arvore {
       return null;
     }
 
+    // Lógica robusta para ler photoPaths (SQLite String ou Firebase List)
     List<String> paths = [];
-    if (map['photoPaths'] != null && map['photoPaths'] is String && (map['photoPaths'] as String).isNotEmpty) {
-      try {
-        var decoded = jsonDecode(map['photoPaths']);
-        if (decoded is List) {
-          paths = List<String>.from(decoded);
+    if (map[DbArvores.photoPaths] != null) {
+      var rawPaths = map[DbArvores.photoPaths];
+      if (rawPaths is String && rawPaths.isNotEmpty) {
+        try {
+          var decoded = jsonDecode(rawPaths);
+          if (decoded is List) paths = List<String>.from(decoded);
+        } catch (e) {
+          debugPrint("Erro ao decodificar photoPaths: $e");
         }
-      } catch (e) {
-        print("Erro ao decodificar photoPaths da árvore: $e");
+      } else if (rawPaths is List) {
+        paths = List<String>.from(rawPaths);
       }
     }
 
@@ -127,7 +132,7 @@ class Arvore {
       tora: map[DbArvores.tora],
       capAuditoria: (map[DbArvores.capAuditoria] as num?)?.toDouble(),
       alturaAuditoria: (map[DbArvores.alturaAuditoria] as num?)?.toDouble(),
-      photoPaths: paths, // <--- NOVO
+      photoPaths: paths,
       lastModified: parseDate(map[DbArvores.lastModified]),
     );
   }

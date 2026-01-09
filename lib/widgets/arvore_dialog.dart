@@ -137,8 +137,9 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
     final picker = ImagePicker();
     final XFile? photo = await picker.pickImage(
       source: ImageSource.camera, 
-      imageQuality: 40, // Qualidade baixa para não estourar RAM
-      maxWidth: 1000,   
+      imageQuality: 30, // Qualidade baixa para não estourar RAM
+      maxWidth: 750,
+       maxHeight: 750,   
     );
     
     if (photo == null) return;
