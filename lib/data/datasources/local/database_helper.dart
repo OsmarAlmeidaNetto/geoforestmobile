@@ -163,7 +163,7 @@ class DatabaseHelper {
         ${DbArvores.codigo3} TEXT,
         especie TEXT, 
         ${DbArvores.tora} TEXT,
-        ${DbArvores.photoPaths} TEXT
+        ${DbArvores.photoPaths} TEXT,
         ${DbArvores.observacao} TEXT,
         ${DbArvores.capAuditoria} REAL,
         ${DbArvores.alturaAuditoria} REAL,

@@ -398,8 +398,8 @@ class _InventarioPageState extends State<InventarioPage> {
         posicaoNaLinhaAtual: arvoreInicial?.posicaoNaLinha ?? proximaPosicao,
         isAdicionandoFuste: isFusteAdicional,
         isBio: isBio,
-        // --- NOVOS PARÂMETROS PARA A FOTO ---
-        projetoNome: "GeoForest Analytics", // Ou busque o nome real se preferir
+        // --- PARÂMETROS PARA A FOTO (CORRIGIDO) ---
+        projetoNome: "GeoForest Analytics", 
         fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
         talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
         idParcela: _parcelaAtual.idParcela,
@@ -411,7 +411,6 @@ class _InventarioPageState extends State<InventarioPage> {
     }
   }
 
-  // >>> ATUALIZAÇÃO 2: PASSAR O FLAG BIO PARA O DIÁLOGO (EDIÇÃO) <<<
   Future<void> _abrirFormularioParaEditar(Arvore arvore) async {
     bool isBio = false;
     if (_parcelaAtual.atividadeTipo != null) {
@@ -429,7 +428,7 @@ class _InventarioPageState extends State<InventarioPage> {
         linhaAtual: arvore.linha,
         posicaoNaLinhaAtual: arvore.posicaoNaLinha,
         isBio: isBio,
-        // --- NOVOS PARÂMETROS PARA A FOTO ---
+        // --- PARÂMETROS PARA A FOTO (CORRIGIDO) ---
         projetoNome: "GeoForest Analytics",
         fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
         talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
@@ -441,6 +440,8 @@ class _InventarioPageState extends State<InventarioPage> {
       await _processarResultadoDialogo(result, indexOriginal: indexOriginal);
     }
   }
+
+
 
   void _identificarArvoresDominantes() {
     for (var arvore in _arvoresColetadas) {

@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:collection/collection.dart';
 import 'package:geoforestv1/data/datasources/local/database_constants.dart';
 
+
 enum Codigo {
   Normal, Falha, Bifurcada, Multipla, Quebrada, Caida, Dominada, Geada, Fogo,
   PragasOuDoencas, AtaqueMacaco, VespaMadeira, MortaOuSeca, PonteiraSeca,
@@ -98,12 +99,12 @@ class Arvore {
 
     List<String> paths = [];
     if (map['photoPaths'] != null && map['photoPaths'] is String && (map['photoPaths'] as String).isNotEmpty) {
-    try {
-      var decoded = jsonDecode(map['photoPaths']);
-      if (decoded is List) {
-        paths = List<String>.from(decoded);
-      }
-    } catch (e) {
+      try {
+        var decoded = jsonDecode(map['photoPaths']);
+        if (decoded is List) {
+          paths = List<String>.from(decoded);
+        }
+      } catch (e) {
         print("Erro ao decodificar photoPaths da árvore: $e");
       }
     }
