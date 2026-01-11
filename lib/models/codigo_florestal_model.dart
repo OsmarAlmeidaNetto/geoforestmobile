@@ -1,16 +1,18 @@
-// lib/models/codigo_florestal_model.dart (CORRIGIDO)
+// Arquivo: lib/models/codigo_florestal_model.dart
 
 class CodigoFlorestal {
   final String sigla;
   final String descricao;
   
-  // As strings "cruas" do CSV
+  // Strings puras do CSV
   final String _fuste;
   final String _cap;
   final String _altura;
-  final String _hipsometria; // O campo que estava "sem uso"
+  final String _hipsometria; 
   final String _extraDan;
-  final String _dominante;
+  // A coluna Dominante no CSV será ignorada ou usada apenas para saber
+  // se a árvore é "candidata" (ex: Morta nunca vira dominante).
+  final String _dominante; 
 
   CodigoFlorestal({
     required this.sigla,
@@ -29,6 +31,7 @@ class CodigoFlorestal {
         _dominante = dominante.toUpperCase().trim();
 
   factory CodigoFlorestal.fromCsv(List<dynamic> row) {
+    // Helper para evitar erro de índice
     String getCol(int index) => (row.length > index) ? row[index].toString() : '.';
 
     return CodigoFlorestal(
@@ -43,28 +46,31 @@ class CodigoFlorestal {
     );
   }
 
-  // --- LÓGICA DE NEGÓCIO ---
+  // --- REGRAS DE NEGÓCIO (S, N, .) ---
 
-  // CAP: Se for 'N', trava o campo.
-  bool get isCapBloqueado => _cap == 'N';
+  // CAP
+  bool get capObrigatorio => _cap == 'S';
+  bool get capBloqueado => _cap == 'N';
 
-  // Altura: 
-  // 'S' = Obrigatório. 'N' ou 'C' = Bloqueado.
-  bool get isAlturaObrigatoria => _altura == 'S';
-  bool get isAlturaBloqueada => _altura == 'N' || _altura == 'C';
+  // Altura Total
+  bool get alturaObrigatoria => _altura == 'S';
+  bool get alturaBloqueada => _altura == 'N';
+  // O ponto (.) significa opcional, então não é nem obrigatório nem bloqueado
 
-  // Dano: Se 'S', abre o campo de dano.
+  // Altura do Dano (Extra Dano)
+  // Se for 'S', habilita o campo e obriga preencher
   bool get requerAlturaDano => _extraDan == 'S';
 
-  // Fuste: Se 'S', permite adicionar fuste.
-  bool get permiteMultifuste => _fuste == 'S';
-  
-  // Dominante: Se 'N', o checkbox de dominante fica desabilitado.
-  bool get permiteDominante => _dominante != 'N';
+  // Fuste
+  bool get permiteMultifuste => _fuste != 'N'; // Se for N, bloqueia o botão "Adic Fuste"
 
-  // <<< CORREÇÃO: ADICIONADO O GETTER QUE FALTAVA >>>
-  // Hipsometria: Indica se essa árvore é candidata a medição de altura para a curva.
-  bool get entraNaHipsometria => _hipsometria == 'S';
+  // Hipsometria (Para cálculos futuros)
+  bool get entraNaCurva => _hipsometria == 'S';
+  
+  // Dominante (Candidata)
+  // Árvores mortas, caídas ou falhas geralmente têm 'N' aqui no CSV.
+  // Isso impede o algoritmo de elegê-las como dominante mesmo se tiverem CAP alto (erro de digitação)
+  bool get podeSerDominante => _dominante != 'N';
 
   @override
   String toString() => "$sigla - $descricao";

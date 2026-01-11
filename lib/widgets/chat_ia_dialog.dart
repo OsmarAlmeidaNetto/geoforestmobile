@@ -1,3 +1,5 @@
+// lib/widgets/chat_ia_dialog.dart
+
 import 'package:flutter/material.dart';
 import 'package:geoforestv1/models/arvore_model.dart';
 import 'package:geoforestv1/models/parcela_model.dart';
@@ -18,40 +20,74 @@ class _ChatIaDialogState extends State<ChatIaDialog> {
   final _scrollController = ScrollController();
   final _aiService = AiValidationService();
   
-  // Lista para manter o histórico da conversa no diálogo
   final List<Map<String, String>> _mensagens = [
     {
       "role": "ai",
-      "text": "Olá! Analisei os dados desta parcela. Posso verificar erros de digitação, calcular médias ou tirar dúvidas técnicas. Como posso ajudar?"
+      "text": "Olá! Sou a IA do GeoForest. Analisei os dados desta parcela. Posso verificar erros, calcular médias ou tirar dúvidas. O que deseja?"
     }
   ];
   
   bool _isLoading = false;
 
-  void _enviarPergunta({String? perguntaPredefinida}) async {
-    final texto = perguntaPredefinida ?? _controller.text;
-    if (texto.isEmpty) return;
+  // --- MAPA DE PROMPTS DETALHADOS ---
+  // Aqui traduzimos o botão curto para uma ordem técnica completa
+  final Map<String, String> _promptsTecnicos = {
+  "🔍 Analisar Erros": "Atue como auditor de qualidade. Analise os dados JSON enviados e liste especificamente: 1. Árvores com CAP zerado que não sejam falha/morta. 2. Árvores com CAP muito acima da média (outliers). 3. Erros de sequência na numeração de Linha/Posição.",
+    
+    "📊 Resumo Estatístico": "Gere um resumo dendrométrico contendo: 1. Média Aritmética do CAP. 2. Altura Média. 3. Contagem total de fustes. 4. Contagem por tipo de código.",
+    
+    "🌲 Dominantes": "Identifique quais árvores são prováveis dominantes baseadas no maior CAP. Liste as 5 árvores com maior CAP desta parcela.",
+    
+    // --- NOVO COMANDO PODEROSO ---
+    "🌿 Analisar Espécies": """
+      Faça uma análise fitossociológica e ecológica simplificada desta parcela baseada nos nomes no campo 'especie':
+      1. Riqueza: Quantas espécies diferentes foram encontradas?
+      2. Dominância: Quais são as 3 espécies mais abundantes (maior quantidade)?
+      3. Raridade na Amostra: Quais espécies apareceram apenas 1 vez (singletons)?
+      4. Status Ecológico/Legal: Verifique na sua base de conhecimento se alguma das espécies listadas é considerada 'Madeira de Lei' no Brasil, está em lista de extinção (IBAMA/IUCN) ou tem alto valor comercial.
+      5. Conclusão: A parcela apresenta alta ou baixa diversidade baseada nesta amostra?
+    """
+  };
+
+  void _enviarPergunta({String? textoVisivel}) async {
+    // O que aparece no balãozinho do chat (ex: "Analisar Erros")
+    final textoParaExibir = textoVisivel ?? _controller.text;
+    
+    if (textoParaExibir.isEmpty) return;
+
+    // O que a IA realmente vai ler (A ordem técnica completa)
+    // Se não tiver no mapa, usa o próprio texto digitado pelo usuário
+    final textoParaIA = _promptsTecnicos[textoParaExibir] ?? textoParaExibir;
     
     setState(() {
-      _mensagens.add({"role": "user", "text": texto});
+      _mensagens.add({"role": "user", "text": textoParaExibir});
       _isLoading = true;
       _controller.clear();
     });
 
     _scrollToBottom();
 
-    final respostaIa = await _aiService.perguntarSobreDados(
-      texto, 
-      widget.parcela, 
-      widget.arvores
-    );
+    try {
+      final respostaIa = await _aiService.perguntarSobreDados(
+        textoParaIA, // <--- Envia o comando detalhado
+        widget.parcela, 
+        widget.arvores
+      );
 
-    if (mounted) {
-      setState(() {
-        _mensagens.add({"role": "ai", "text": respostaIa});
-        _isLoading = false;
-      });
-      _scrollToBottom();
+      if (mounted) {
+        setState(() {
+          _mensagens.add({"role": "ai", "text": respostaIa});
+          _isLoading = false;
+        });
+        _scrollToBottom();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _mensagens.add({"role": "ai", "text": "Ocorreu um erro ao processar. Tente novamente."});
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -69,6 +105,7 @@ class _ChatIaDialogState extends State<ChatIaDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final isBio = widget.parcela.atividadeTipo?.toUpperCase().contains("BIO") ?? false;
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
@@ -87,7 +124,6 @@ class _ChatIaDialogState extends State<ChatIaDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Listagem de Mensagens (Histórico)
             Flexible(
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 8),
@@ -113,7 +149,7 @@ class _ChatIaDialogState extends State<ChatIaDialog> {
 
             const SizedBox(height: 12),
 
-            // Sugestões de Ação Rápida
+            // Botões de Ação Rápida
             if (!_isLoading)
               SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
@@ -121,18 +157,22 @@ class _ChatIaDialogState extends State<ChatIaDialog> {
                   children: [
                     _buildQuickAction("🔍 Analisar Erros"),
                     _buildQuickAction("📊 Resumo Estatístico"),
-                    _buildQuickAction("🌲 Dominantes"),
+                    
+                    if (!isBio) // Só mostra Dominantes se NÃO for Bio (geralmente Bio não foca nisso)
+                       _buildQuickAction("🌲 Dominantes"),
+                    
+                    if (isBio) // Só mostra Espécies se FOR Bio
+                       _buildQuickAction("🌿 Analisar Espécies"),
                   ],
                 ),
               ),
               
             const SizedBox(height: 12),
 
-            // Input de texto
             TextField(
               controller: _controller,
               decoration: InputDecoration(
-                hintText: "Dúvida sobre a coleta...",
+                hintText: "Digite sua dúvida...",
                 suffixIcon: IconButton(
                   icon: const Icon(Icons.send, color: Colors.blue),
                   onPressed: _isLoading ? null : () => _enviarPergunta(),
@@ -158,7 +198,7 @@ class _ChatIaDialogState extends State<ChatIaDialog> {
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isAi ? Colors.grey.shade100 : Colors.blue.shade500,
+          color: isAi ? Colors.grey.shade100 : Colors.blue.shade600,
           borderRadius: BorderRadius.only(
             topLeft: const Radius.circular(12),
             topRight: const Radius.circular(12),
@@ -180,9 +220,10 @@ class _ChatIaDialogState extends State<ChatIaDialog> {
       padding: const EdgeInsets.only(right: 8.0),
       child: ActionChip(
         label: Text(label, style: const TextStyle(fontSize: 12)),
-        onPressed: _isLoading ? null : () => _enviarPergunta(perguntaPredefinida: label),
+        // Passa o label como texto visível
+        onPressed: _isLoading ? null : () => _enviarPergunta(textoVisivel: label),
         backgroundColor: Colors.blue.shade50,
-        side: BorderSide(color: Colors.blue.shade100),
+        side: BorderSide(color: Colors.blue.shade200),
       ),
     );
   }

@@ -10,7 +10,9 @@ import 'package:geoforestv1/pages/dashboard/dashboard_page.dart';
 import 'package:geoforestv1/data/repositories/parcela_repository.dart';
 import 'package:geoforestv1/data/repositories/projeto_repository.dart';
 
-
+// IMPORTS PARA LÓGICA DINÂMICA
+import 'package:geoforestv1/models/codigo_florestal_model.dart';
+import 'package:geoforestv1/data/repositories/codigos_repository.dart';
 
 class InventarioPage extends StatefulWidget {
   final Parcela parcela;
@@ -25,11 +27,15 @@ class _InventarioPageState extends State<InventarioPage> {
   final _validationService = ValidationService();
   final _parcelaRepository = ParcelaRepository();
   final _projetoRepository = ProjetoRepository();
-  String _projetoNome = "GeoForest Analytics";
+  final _codigosRepository = CodigosRepository(); // Repositório de regras
   
+  String _projetoNome = "GeoForest Analytics";
 
   late Parcela _parcelaAtual;
   List<Arvore> _arvoresColetadas = [];
+  
+  // Cache das regras para não ler CSV a cada renderização de linha
+  List<CodigoFlorestal> _regrasCacheadas = [];
   
   late Future<bool> _dataLoadingFuture;
 
@@ -48,7 +54,7 @@ class _InventarioPageState extends State<InventarioPage> {
   }
 
   Future<bool> _configurarStatusDaTela() async {
-    // Busca o nome do projeto para usar na marca d'água da foto
+    // 1. Carrega Nome do Projeto
     if (_parcelaAtual.projetoId != null) {
       try {
         final proj = await _projetoRepository.getProjetoById(_parcelaAtual.projetoId!);
@@ -60,6 +66,14 @@ class _InventarioPageState extends State<InventarioPage> {
       }
     }
 
+    // 2. Carrega as Regras do CSV (S, N, .)
+    try {
+      _regrasCacheadas = await _codigosRepository.carregarCodigos(_parcelaAtual.atividadeTipo ?? "IPC");
+    } catch (e) {
+      debugPrint("Erro ao carregar regras de código: $e");
+    }
+
+    // 3. Verifica Status (ReadOnly)
     if ((_parcelaAtual.status == StatusParcela.concluida || _parcelaAtual.status == StatusParcela.exportada) && _arvoresColetadas.isNotEmpty) {
       _isReadOnly = true;
     } else {
@@ -69,7 +83,25 @@ class _InventarioPageState extends State<InventarioPage> {
         await _parcelaRepository.updateParcelaStatus(_parcelaAtual.dbId!, StatusParcela.emAndamento);
       }
     }
+    
+    // 4. Garante cálculo de dominantes ao abrir (agora usando regras do CSV)
+    if (_regrasCacheadas.isNotEmpty) {
+      _identificarArvoresDominantes();
+    }
+
     return true;
+  }
+
+  // Helper para encontrar a regra de um código específico (String)
+  CodigoFlorestal? _encontrarRegra(String codigoString) {
+    if (_regrasCacheadas.isEmpty) return null;
+    try {
+      return _regrasCacheadas.firstWhere(
+        (r) => r.sigla.toUpperCase() == codigoString.toUpperCase(),
+      );
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> _reabrirParaEdicao() async {
@@ -95,69 +127,84 @@ class _InventarioPageState extends State<InventarioPage> {
   }
 
   Future<void> _concluirColeta() async {
-    // 1. IDENTIFICAR PROBLEMAS
-    
-    // A. Verifica Dominantes sem Altura Total
-    final dominantesSemAltura = _arvoresColetadas.where((a) => 
-      a.dominante && (a.altura == null || a.altura! <= 0)
-    ).toList();
+    // 1. Atualiza cálculo de dominantes antes de validar
+    _identificarArvoresDominantes();
 
-    // B. Verifica Quebradas sem Altura do Dano
-    final quebradasSemAltura = _arvoresColetadas.where((a) => 
-      a.codigo == Codigo.Quebrada && (a.alturaDano == null || a.alturaDano! <= 0)
-    ).toList();
+    List<String> errosImpeditivos = [];
 
-    // 2. SE HOUVER ALGUM PROBLEMA, EXIBIR ALERTA
-    if (dominantesSemAltura.isNotEmpty || quebradasSemAltura.isNotEmpty) {
-      
-      // Monta a mensagem dinamicamente
-      final StringBuffer mensagem = StringBuffer();
-      mensagem.writeln("Foram encontrados dados pendentes:\n");
+    // 2. Validação baseada no CSV (Dinâmica)
+    for (var arvore in _arvoresColetadas) {
+      final regra = _encontrarRegra(arvore.codigo);
+      final String pos = "L:${arvore.linha}/P:${arvore.posicaoNaLinha}";
 
-      if (dominantesSemAltura.isNotEmpty) {
-        final listaDom = dominantesSemAltura.map((a) => "L:${a.linha}/A:${a.posicaoNaLinha}").join(", ");
-        mensagem.writeln("• ${dominantesSemAltura.length} Árvore(s) Dominante(s) sem Altura Total.");
-        mensagem.writeln("  ($listaDom)\n");
+      if (regra != null) {
+        // REGRA A: Código exige Altura de Dano (S no CSV - Coluna Extra_Dano)
+        if (regra.requerAlturaDano) {
+          if (arvore.alturaDano == null || arvore.alturaDano! <= 0) {
+            errosImpeditivos.add("$pos (${arvore.codigo}): Falta Altura do Dano/Bifurcação.");
+          }
+        }
+
+        // REGRA B: Código exige Altura Total (S no CSV - Coluna Altura)
+        if (regra.alturaObrigatoria) {
+          if (arvore.altura == null || arvore.altura! <= 0) {
+            errosImpeditivos.add("$pos (${arvore.codigo}): Altura Total é obrigatória.");
+          }
+        }
       }
 
-      if (quebradasSemAltura.isNotEmpty) {
-        final listaQueb = quebradasSemAltura.map((a) => "L:${a.linha}/A:${a.posicaoNaLinha}").join(", ");
-        mensagem.writeln("• ${quebradasSemAltura.length} Árvore(s) Quebrada(s) sem Altura do Dano.");
-        mensagem.writeln("  ($listaQueb)\n");
+      // REGRA C: Dominantes (Calculadas pelo App) exigem Altura Total
+      if (arvore.dominante) {
+        if (arvore.altura == null || arvore.altura! <= 0) {
+          errosImpeditivos.add("$pos (Dominante): Falta Altura Total.");
+        }
       }
+    }
 
-      mensagem.write("Deseja concluir mesmo com esses dados faltando?");
-
-      // Exibe o diálogo
-      final continuarMesmoAssim = await showDialog<bool>(
+    // 3. SE HOUVER PENDÊNCIAS, BLOQUEIA E MOSTRA LISTA
+    if (errosImpeditivos.isNotEmpty) {
+      await showDialog(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text("Atenção: Dados Faltantes"),
-          content: SingleChildScrollView(child: Text(mensagem.toString())), // SingleChildScrollView caso a lista seja grande
+          title: const Text("Dados Pendentes"),
+          content: SizedBox(
+            width: double.maxFinite,
+            height: 250, // Altura fixa para scroll se a lista for grande
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text("Não é possível concluir a parcela com as seguintes pendências:", style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                Expanded(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: errosImpeditivos.length,
+                    itemBuilder: (ctx, i) => Padding(
+                      padding: const EdgeInsets.only(bottom: 6.0),
+                      child: Text("• ${errosImpeditivos[i]}", style: const TextStyle(color: Colors.red, fontSize: 13)),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx, false), // Retorna false (Corrigir)
-              child: const Text("Corrigir"),
-            ),
-            // Se você quiser BLOQUEAR totalmente, remova este botão abaixo:
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, true), // Retorna true (Ignorar)
-              child: const Text("Ignorar e Concluir", style: TextStyle(color: Colors.red)),
+              onPressed: () => Navigator.pop(ctx), 
+              child: const Text("Corrigir", style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         ),
       );
-
-      // Se o usuário clicou em "Corrigir" ou fora do diálogo, para a execução aqui.
-      if (continuarMesmoAssim != true) return;
+      return; // Interrompe a conclusão
     }
 
-    // 3. CONFIRMAÇÃO FINAL (FLUXO PADRÃO)
+    // 4. CONFIRMAÇÃO FINAL (Se passou na validação)
     final confirm = await showDialog<bool>(
       context: context, 
       builder: (context) => AlertDialog(
         title: const Text('Concluir Coleta'),
-        content: const Text('Tem certeza que deseja marcar esta parcela como concluída?'),
+        content: const Text('Todos os dados obrigatórios estão preenchidos. Deseja finalizar?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
           ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Concluir'))
@@ -298,13 +345,11 @@ class _InventarioPageState extends State<InventarioPage> {
         _arvoresColetadas.add(result.arvore);
       }
 
-      // CORREÇÃO: Reordena a lista imediatamente para manter a consistência visual
       _arvoresColetadas.sort((a, b) {
         int compLinha = a.linha.compareTo(b.linha);
         if (compLinha != 0) return compLinha;
         int compPos = a.posicaoNaLinha.compareTo(b.posicaoNaLinha);
         if (compPos != 0) return compPos;
-        // Fallback: mantém ordem de inserção/ID se Linha e Posição forem iguais
         return (a.id ?? 0).compareTo(b.id ?? 0);
       });
     });
@@ -318,11 +363,14 @@ class _InventarioPageState extends State<InventarioPage> {
     } 
     else if (result.continuarNaMesmaPosicao) {
       final ultimoFusteSalvo = result.arvore;
+      
+      // Cria template, mas o código "Múltipla" agora é String ("M" ou "MUT")
+      // Buscamos na regra o que seria "Múltipla" ou usamos "N" e o usuário ajusta
       final proximoFusteTemplate = Arvore(
         cap: 0,
         linha: ultimoFusteSalvo.linha,
         posicaoNaLinha: ultimoFusteSalvo.posicaoNaLinha,
-        codigo: Codigo.Multipla,
+        codigo: ultimoFusteSalvo.codigo, // Copia o código da anterior (ex: "B" ou "M")
       );
       Future.delayed(const Duration(milliseconds: 50), () => _adicionarNovaArvore(
         arvoreInicial: proximoFusteTemplate, 
@@ -330,12 +378,10 @@ class _InventarioPageState extends State<InventarioPage> {
       ));
     } 
     else if (result.atualizarEProximo && indexOriginal != null) {
-      // Recalcula lista de navegação (considerando filtro de dominantes)
       final List<Arvore> listaDeNavegacao = _mostrandoApenasDominantes
           ? _arvoresColetadas.where((a) => a.dominante).toList()
           : _arvoresColetadas;
 
-      // Garante a ordenação da lista de navegação também
       listaDeNavegacao.sort((a, b) {
         int compLinha = a.linha.compareTo(b.linha);
         if (compLinha != 0) return compLinha;
@@ -344,7 +390,6 @@ class _InventarioPageState extends State<InventarioPage> {
         return (a.id ?? 0).compareTo(b.id ?? 0);
       });
 
-      // CORREÇÃO: Usa indexOf para achar a posição exata do objeto atual na lista ordenada
       final int novoIndex = listaDeNavegacao.indexOf(result.arvore);
       
       if (novoIndex != -1 && novoIndex + 1 < listaDeNavegacao.length) {
@@ -372,7 +417,6 @@ class _InventarioPageState extends State<InventarioPage> {
     }
   }
 
-  // >>> ATUALIZAÇÃO 1: PASSAR O FLAG BIO PARA O DIÁLOGO (NOVO) <<<
   Future<void> _adicionarNovaArvore({Arvore? arvoreInicial, bool isFusteAdicional = false}) async {
     bool isBio = _parcelaAtual.atividadeTipo?.toUpperCase().contains('BIO') ?? false;
     
@@ -399,7 +443,7 @@ class _InventarioPageState extends State<InventarioPage> {
         cap: 0,
         linha: proximaLinha,
         posicaoNaLinha: proximaPosicao,
-        codigo: Codigo.Multipla,
+        codigo: ultimaArvore.codigo, // Copia código
       );
     }
 
@@ -412,7 +456,6 @@ class _InventarioPageState extends State<InventarioPage> {
         posicaoNaLinhaAtual: arvoreInicial?.posicaoNaLinha ?? proximaPosicao,
         isAdicionandoFuste: isFusteAdicional,
         isBio: isBio,
-        // --- PARÂMETROS PARA A FOTO (CORRIGIDO) ---
         projetoNome: _projetoNome,
         fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
         talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
@@ -433,15 +476,14 @@ class _InventarioPageState extends State<InventarioPage> {
     if (indexOriginal == -1) return;
 
     final result = await showDialog<DialogResult>(
-  context: context,
-  barrierDismissible: false,
-  builder: (context) => ArvoreDialog(
-    arvoreParaEditar: arvore, // ou arvoreTemplate
-    linhaAtual: arvore.linha,
-    posicaoNaLinhaAtual: arvore.posicaoNaLinha,
-    isBio: isBio,
-    // --- NOVOS PARÂMETROS OBRIGATÓRIOS ---
-     projetoNome: _projetoNome,
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ArvoreDialog(
+        arvoreParaEditar: arvore,
+        linhaAtual: arvore.linha,
+        posicaoNaLinhaAtual: arvore.posicaoNaLinha,
+        isBio: isBio,
+        projetoNome: _projetoNome,
         fazendaNome: _parcelaAtual.nomeFazenda ?? "N/A",
         talhaoNome: _parcelaAtual.nomeTalhao ?? "N/A",
         idParcela: _parcelaAtual.idParcela,
@@ -454,23 +496,31 @@ class _InventarioPageState extends State<InventarioPage> {
     }
   }
 
-
-
   void _identificarArvoresDominantes() {
+    // 1. Reseta todas as flags de dominância
     for (var arvore in _arvoresColetadas) {
       arvore.dominante = false;
     }
+
+    // 2. Calcula quantas dominantes deveriam existir (Ex: 100/ha)
     final int numeroDeDominantes = (_parcelaAtual.areaMetrosQuadrados / 100).floor();
-    final arvoresCandidatas = _arvoresColetadas.where((a) => a.codigo == Codigo.Normal).toList();
-    if (arvoresCandidatas.length <= numeroDeDominantes) {
-      for (var arvore in arvoresCandidatas) {
-        arvore.dominante = true;
+
+    // 3. Filtra árvores candidatas usando o CSV (Coluna Dominante: S)
+    final arvoresCandidatas = _arvoresColetadas.where((a) {
+      final regra = _encontrarRegra(a.codigo);
+      if (regra != null) {
+        return regra.podeSerDominante; 
       }
-    } else {
-      arvoresCandidatas.sort((a, b) => b.cap.compareTo(a.cap));
-      for (int i = 0; i < numeroDeDominantes; i++) {
-        arvoresCandidatas[i].dominante = true;
-      }
+      return a.codigo == "N"; // Fallback se regra não carregada
+    }).toList();
+
+    // 4. Ordena por CAP (as maiores)
+    arvoresCandidatas.sort((a, b) => b.cap.compareTo(a.cap));
+
+    // 5. Marca as Top X
+    final int limite = numeroDeDominantes < arvoresCandidatas.length ? numeroDeDominantes : arvoresCandidatas.length;
+    for (int i = 0; i < limite; i++) {
+      arvoresCandidatas[i].dominante = true;
     }
   }
 
@@ -577,29 +627,35 @@ class _InventarioPageState extends State<InventarioPage> {
                           itemCount: listaExibida.length,
                           itemBuilder: (context, index) {
                             final arvore = listaExibida[index];
+                            final regra = _encontrarRegra(arvore.codigo);
                             
-                            // --- LÓGICA DE CORES ATUALIZADA ---
-                            final bool isQuebrada = arvore.codigo == Codigo.Quebrada; 
-                            
+                            // --- LÓGICA DE CORES ATUALIZADA (DINÂMICA) ---
                             Color backgroundColor;
-                            if (isQuebrada) {
-                              backgroundColor = Colors.red.shade50;
-                            } else if (arvore.dominante) {
-                              backgroundColor = Theme.of(context).colorScheme.primaryContainer.withOpacity(0.4);
-                            } else if (index.isOdd) {
-                              backgroundColor = Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.3);
-                            } else {
-                              backgroundColor = Colors.transparent;
+
+                            // 1. Prioridade: Erro ou Dano (Baseado no CSV: Extra_Dano == S)
+                            if (regra != null && regra.requerAlturaDano) {
+                              backgroundColor = Colors.red.shade50; 
+                            } 
+                            // 2. Prioridade: Dominante (Baseado no App: booleano dominante)
+                            else if (arvore.dominante) {
+                              backgroundColor = Colors.blue.shade50;
+                            } 
+                            // 3. Normal (Alternado)
+                            else {
+                              backgroundColor = index.isOdd ? Colors.grey.shade50 : Colors.white;
                             }
 
-                            Color borderColor;
-                            double borderWidth;
-                            if (isQuebrada) {
-                              borderColor = Colors.red.shade200;
-                              borderWidth = 1.2;
-                            } else {
-                              borderColor = Theme.of(context).dividerColor;
-                              borderWidth = 0.8;
+                            // Borda especial se tiver Dano
+                            Color borderColor = (regra != null && regra.requerAlturaDano) 
+                                ? Colors.red.shade200 
+                                : Theme.of(context).dividerColor;
+                            
+                            double borderWidth = (regra != null && regra.requerAlturaDano) ? 1.2 : 0.8;
+                            
+                            // Exibição do Código (Concatenado)
+                            String codigoDisplay = arvore.codigo;
+                            if (arvore.codigo2 != null && arvore.codigo2!.isNotEmpty) {
+                              codigoDisplay += ", ${arvore.codigo2}";
                             }
 
                             return Slidable(
@@ -632,7 +688,7 @@ class _InventarioPageState extends State<InventarioPage> {
                                       _DataCell(arvore.cap > 0 ? arvore.cap.toStringAsFixed(1) : '-', flex: 20),
                                       _DataCell(arvore.altura?.toStringAsFixed(1) ?? '-', flex: 20),
                                       _DataCell(
-                                        '${arvore.codigo.name[0].toUpperCase()}${arvore.codigo2 != null ? ", ${arvore.codigo2!.name[0].toUpperCase()}" : ""}',
+                                        codigoDisplay,
                                         flex: 30, 
                                         isBold: true
                                       ),
@@ -666,12 +722,13 @@ class _InventarioPageState extends State<InventarioPage> {
     }
     final int totalCovas = covas.length;
 
-    final int totalNormal = _arvoresColetadas.where((a) => a.codigo == Codigo.Normal).length;
-    final int contagemAlturaNormal = _arvoresColetadas.where((a) => a.codigo == Codigo.Normal && a.altura != null && a.altura! > 0).length;
+    // Adaptação da contagem para Strings (usa "N" para normal)
+    final int totalNormal = _arvoresColetadas.where((a) => a.codigo == "N").length;
+    final int contagemAlturaNormal = _arvoresColetadas.where((a) => a.codigo == "N" && a.altura != null && a.altura! > 0).length;
     final double porcentagem = (totalNormal > 0) ? (contagemAlturaNormal / totalNormal) * 100 : 0.0;
     
     final int contagemAlturaDominante = _arvoresColetadas.where((a) => a.dominante && a.altura != null && a.altura! > 0).length;
-    final int contagemAlturaOutros = _arvoresColetadas.where((a) => a.codigo != Codigo.Normal && a.altura != null && a.altura! > 0).length;
+    final int contagemAlturaOutros = _arvoresColetadas.where((a) => a.codigo != "N" && a.altura != null && a.altura! > 0).length;
 
     return Card(
       margin: const EdgeInsets.all(8),
@@ -733,8 +790,6 @@ class _InventarioPageState extends State<InventarioPage> {
     );
   }
 }
-
-//// Aqui
 
 class _HeaderCell extends StatelessWidget {
    final String text;

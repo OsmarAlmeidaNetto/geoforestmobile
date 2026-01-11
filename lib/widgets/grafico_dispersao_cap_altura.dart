@@ -1,4 +1,4 @@
-// lib/widgets/grafico_dispersao_cap_altura.dart (VERSÃO CORRIGIDA - SEM OVERFLOW)
+// lib/widgets/grafico_dispersao_cap_altura.dart (VERSÃO COMPLETA E CORRIGIDA)
 
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -18,34 +18,38 @@ class GraficoDispersaoCapAltura extends StatefulWidget {
 }
 
 class _GraficoDispersaoCapAlturaState extends State<GraficoDispersaoCapAltura> {
-  // Estado para controlar os filtros
-  late Set<Codigo> _codigosVisiveis;
-  late List<Codigo> _codigosUnicos;
+  // Estado para controlar os filtros (agora usando String)
+  late Set<String> _codigosVisiveis;
+  late List<String> _codigosUnicos;
   EixoYDispersao _eixoYSelecionado = EixoYDispersao.alturaTotal;
 
   @override
   void initState() {
     super.initState();
-    // Encontra todos os códigos únicos presentes nos dados e os ativa por padrão
+    // Encontra todos os códigos únicos (Strings) presentes nos dados
     _codigosUnicos = widget.arvores.map((a) => a.codigo).toSet().toList();
-    _codigosUnicos.sort((a, b) => a.name.compareTo(b.name));
+    _codigosUnicos.sort(); // Ordena alfabeticamente
     _codigosVisiveis = _codigosUnicos.toSet();
   }
 
-  // Cores Neon/Vibrantes para o modo escuro
-  Color _getColorForCodigo(Codigo codigo) {
-    switch (codigo) {
-      case Codigo.Normal: return Colors.blue; 
-      case Codigo.Falha: return Colors.redAccent;
-      case Codigo.MortaOuSeca: return Colors.grey;
-      case Codigo.BifurcadaAcima: return Colors.purpleAccent;
-      case Codigo.BifurcadaAbaixo: return Colors.pinkAccent;
-      case Codigo.Quebrada: return Colors.orangeAccent;
-      case Codigo.Caida: return Colors.brown;
-      case Codigo.Multipla: return Colors.yellowAccent;
-      case Codigo.Dominada: return Colors.cyanAccent;
-      default: return Colors.tealAccent;
-    }
+  // Cores dinâmicas baseadas na sigla
+  Color _getColorForCodigo(String codigo) {
+    // Padronização para maiúsculas para evitar erros
+    final cod = codigo.toUpperCase();
+    
+    // Mapeamento visual para as siglas mais comuns
+    if (cod == "N") return Colors.blue;          // Normal
+    if (cod == "F") return Colors.redAccent;     // Falha
+    if (cod == "M") return Colors.grey;          // Morta
+    if (cod == "A") return Colors.purpleAccent;  // Bifurcada Acima
+    if (cod == "B" || cod == "BF") return Colors.pinkAccent; // Bifurcada Abaixo
+    if (cod == "Q") return Colors.orangeAccent;  // Quebrada
+    if (cod == "CA") return Colors.brown;        // Caída
+    if (cod == "D") return Colors.cyanAccent;    // Dominada
+    
+    // Cores genéricas para outros códigos dinâmicos
+    // Usa o hashCode para garantir que o mesmo código sempre tenha a mesma cor
+    return Colors.primaries[cod.hashCode % Colors.primaries.length];
   }
 
   @override
@@ -56,12 +60,13 @@ class _GraficoDispersaoCapAlturaState extends State<GraficoDispersaoCapAltura> {
     final Color cardBackgroundColor = isDark ? const Color(0xFF1E293B) : Colors.white;
     final Color corTextoEixo = isDark ? Colors.white54 : Colors.black54;
 
-    // Filtra as árvores
+    // Filtra as árvores (agora comparando Strings)
     final arvoresFiltradas = widget.arvores.where((arvore) {
       final hasData = arvore.cap > 0 &&
           (_eixoYSelecionado == EixoYDispersao.alturaTotal
               ? (arvore.altura ?? 0) > 0
               : (arvore.alturaDano ?? 0) > 0);
+      
       return _codigosVisiveis.contains(arvore.codigo) && hasData;
     }).toList();
 
@@ -74,24 +79,22 @@ class _GraficoDispersaoCapAlturaState extends State<GraficoDispersaoCapAltura> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --- CABEÇALHO CORRIGIDO (SEM OVERFLOW) ---
+            // --- CABEÇALHO ---
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Expanded força o texto a ocupar só o espaço disponível
                 Expanded(
                   child: Text(
                     'Dispersão CAP vs. Altura', 
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: isDark ? Colors.white : Colors.black87,
-                      fontSize: 18, // Tamanho levemente reduzido para segurança
+                      fontSize: 18,
                     ),
-                    overflow: TextOverflow.ellipsis, // Adiciona ... se for muito longo
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 8),
-                // Dropdown compacto
                 DropdownButton<EixoYDispersao>(
                   value: _eixoYSelecionado,
                   dropdownColor: cardBackgroundColor,
@@ -100,7 +103,7 @@ class _GraficoDispersaoCapAlturaState extends State<GraficoDispersaoCapAltura> {
                   style: TextStyle(
                     color: isDark ? Colors.cyanAccent : Colors.blue, 
                     fontWeight: FontWeight.bold,
-                    fontSize: 12, // Fonte menor para caber
+                    fontSize: 12,
                   ),
                   onChanged: (EixoYDispersao? newValue) {
                     if (newValue != null) {
@@ -116,15 +119,15 @@ class _GraficoDispersaoCapAlturaState extends State<GraficoDispersaoCapAltura> {
             ),
             const SizedBox(height: 16),
             
-            // FILTROS DE CÓDIGO
+            // FILTROS DE CÓDIGO (Chips Dinâmicos)
             Wrap(
               spacing: 6.0,
-              runSpacing: 6.0, // Adicionado espaçamento vertical para evitar colisão
+              runSpacing: 6.0,
               children: _codigosUnicos.map((codigo) {
                 final isSelected = _codigosVisiveis.contains(codigo);
                 final color = _getColorForCodigo(codigo);
                 return FilterChip(
-                  label: Text(codigo.name),
+                  label: Text(codigo), // Exibe a Sigla
                   labelStyle: TextStyle(
                     fontSize: 10,
                     color: isSelected 
@@ -225,12 +228,13 @@ class _GraficoDispersaoCapAlturaState extends State<GraficoDispersaoCapAltura> {
                                 );
                               }).toList();
                               
+                              // Encontra qual árvore corresponde ao ponto tocado
                               final spotIndex = spots.indexWhere((spot) => spot.x == touchedSpot.x && spot.y == touchedSpot.y);
                               if (spotIndex < 0) return null;
                               
                               final arvoreTocada = arvoresFiltradas[spotIndex];
                               return ScatterTooltipItem(
-                                '${arvoreTocada.codigo.name}\nCAP: ${arvoreTocada.cap}\nAlt: ${touchedSpot.y}',
+                                '${arvoreTocada.codigo}\nCAP: ${arvoreTocada.cap}\nAlt: ${touchedSpot.y}',
                                 textStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                               );
                             },

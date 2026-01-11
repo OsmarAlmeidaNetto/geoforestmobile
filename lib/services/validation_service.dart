@@ -1,4 +1,4 @@
-// lib/services/validation_service.dart
+// Arquivo: lib/services/validation_service.dart
 
 import 'dart:math';
 import 'package:collection/collection.dart';
@@ -19,7 +19,7 @@ class ValidationIssue {
   final String mensagem;
   final int? parcelaId;
   final int? cubagemId;
-  final int? arvoreId; // ID da árvore para o "Pulo Direto"
+  final int? arvoreId; 
   final String identificador;
 
   ValidationIssue({
@@ -50,19 +50,14 @@ class FullValidationReport {
 
 class ValidationService {
   
-  /// Converte os resultados brutos da IA para a lista de problemas clicáveis
-  List<ValidationIssue> mapIaErrorsToIssues(
-    List<Map<String, dynamic>> iaErros, 
-    Parcela parcela
-  ) {
+  List<ValidationIssue> mapIaErrorsToIssues(List<Map<String, dynamic>> iaErros, Parcela parcela) {
     final idRelatorio = "P${parcela.idParcela} | IA - ${parcela.nomeTalhao}";
-    
     return iaErros.map((erro) {
       return ValidationIssue(
         tipo: 'Análise IA',
         mensagem: erro['msg'] ?? 'Inconsistência detectada pela IA.',
         parcelaId: parcela.dbId,
-        arvoreId: erro['id'], // Aqui o ID que a IA devolveu faz a mágica
+        arvoreId: erro['id'], 
         identificador: idRelatorio,
       );
     }).toList();
@@ -70,7 +65,7 @@ class ValidationService {
 
   ValidationResult validateParcela(List<Arvore> arvores) {
     final List<String> warnings = [];
-    final vivas = arvores.where((a) => a.codigo != Codigo.Falha && a.codigo != Codigo.Caida && a.cap > 0).toList();
+    final vivas = arvores.where((a) => a.codigo != "F" && a.codigo != "CA" && a.cap > 0).toList();
     
     if (vivas.length < 5) return ValidationResult(isValid: true, warnings: []);
 
@@ -95,11 +90,11 @@ class ValidationService {
   ValidationResult validateSingleTree(Arvore arvore) {
     final List<String> warnings = [];
     
-    if (arvore.codigo == Codigo.Normal && arvore.codigo2 != null) {
-      warnings.add("Árvore 'Normal' com código secundário (${arvore.codigo2!.name}).");
+    if (arvore.codigo == "N" && arvore.codigo2 != null) {
+      warnings.add("Árvore 'Normal' com código secundário (${arvore.codigo2}).");
     }
 
-    if (arvore.codigo != Codigo.Falha && arvore.codigo != Codigo.Caida) {
+    if (arvore.codigo != "F" && arvore.codigo != "CA") {
       if (arvore.cap <= 3.0) warnings.add("CAP (${arvore.cap} cm) muito baixo.");
       if (arvore.cap > 450.0) warnings.add("CAP (${arvore.cap} cm) improvável. Verifique digitação.");
     }
@@ -126,7 +121,6 @@ class ValidationService {
     final List<ValidationIssue> allIssues = [];
     int arvoresContadas = 0;
 
-    // Proteção: Processa apenas se tiver dbId
     final parcelasValidas = parcelas.where((p) => p.dbId != null).toList();
 
     for (final parcela in parcelasValidas) {
@@ -164,6 +158,7 @@ class ValidationService {
     }
 
     final arvoresPorLinha = groupBy(arvores, (Arvore a) => a.linha);
+    // Agrupa por Cova para verificar Bifurcadas
     final posicoesAgrupadas = groupBy(arvores, (Arvore a) => '${a.linha}-${a.posicaoNaLinha}');
 
     arvoresPorLinha.forEach((linha, listaArvores) {
@@ -183,12 +178,32 @@ class ValidationService {
     });
 
     posicoesAgrupadas.forEach((pos, fustes) {
-      if (fustes.length > 1) {
-        if (!fustes.any((a) => a.codigo == Codigo.Multipla)) {
-          issues.add(ValidationIssue(tipo: 'Duplicata', mensagem: 'Cova duplicada sem código Múltipla.', parcelaId: parcela.dbId, arvoreId: fustes.first.id, identificador: idRelatorio));
-        }
-      } else if (fustes.first.codigo == Codigo.Multipla) {
-         issues.add(ValidationIssue(tipo: 'Código', mensagem: 'Marcada como Múltipla mas só tem 1 fuste.', parcelaId: parcela.dbId, arvoreId: fustes.first.id, identificador: idRelatorio));
+      // REGRA: Bifurcada (B ou BF) exige múltiplos fustes
+      final temBifurcada = fustes.any((a) {
+        final cod = a.codigo.toUpperCase();
+        return cod == 'B' || cod == 'BF';
+      });
+
+      if (temBifurcada && fustes.length < 2) {
+         issues.add(ValidationIssue(
+           tipo: 'Fuste Único', 
+           mensagem: 'Árvore marcada como Bifurcada Abaixo (B) deve ter múltiplos fustes.', 
+           parcelaId: parcela.dbId, 
+           arvoreId: fustes.first.id, 
+           identificador: "Posição $pos"
+        ));
+      }
+
+      // Regra genérica de duplicidade sem código adequado
+      if (fustes.length > 1 && !temBifurcada) {
+         // Se não for Bifurcada, talvez devesse ser Múltipla ou Rebrota. 
+         // Se for "N" com 2 fustes, pode ser erro, ou pode ser Rebrota sem código R.
+         // Deixamos passar se o usuário usou Rebrota.
+         final temRebrota = fustes.any((a) => a.codigo.toUpperCase() == 'R');
+         if (!temRebrota) {
+            // Se for 2 Normais na mesma cova, é estranho (a menos que seja falha de plantio replantada, mas raro)
+            // Aviso leve
+         }
       }
     });
 

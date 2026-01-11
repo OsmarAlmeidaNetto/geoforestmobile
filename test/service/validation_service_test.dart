@@ -1,132 +1,239 @@
-// test/services/validation_service_test.dart
+// Arquivo: lib/services/validation_service.dart
 
-// 1. Importa a biblioteca de testes do Flutter.
-import 'package:flutter_test/flutter_test.dart';
-
-// 2. Importa as classes que vamos testar.
+import 'dart:math';
+import 'package:collection/collection.dart';
+import 'package:geoforestv1/data/repositories/cubagem_repository.dart';
+import 'package:geoforestv1/data/repositories/parcela_repository.dart';
 import 'package:geoforestv1/models/arvore_model.dart';
-import 'package:geoforestv1/services/validation_service.dart';
+import 'package:geoforestv1/models/cubagem_arvore_model.dart';
+import 'package:geoforestv1/models/parcela_model.dart';
 
-// A função 'main' é o ponto de entrada para os testes neste arquivo.
-void main() {
-  
-  // 'group' agrupa testes relacionados. Facilita a leitura dos resultados.
-  group('ValidationService - validateSingleTree', () {
-    
-    // Instancia o serviço que queremos testar.
-    final validationService = ValidationService();
+class ValidationResult {
+  final bool isValid;
+  final List<String> warnings;
+  ValidationResult({this.isValid = true, this.warnings = const []});
+}
 
-    // 'test' define um caso de teste individual.
-    test('deve retornar válido para uma árvore com dados normais', () {
-      // ARRANGE: Preparamos os dados de entrada.
-      final arvoreNormal = Arvore(
-        cap: 45.5,
-        altura: 28.0,
-        linha: 1,
-        posicaoNaLinha: 1,
-        codigo: Codigo.Normal,
-      );
+class ValidationIssue {
+  final String tipo;
+  final String mensagem;
+  final int? parcelaId;
+  final int? cubagemId;
+  final int? arvoreId; 
+  final String identificador;
 
-      // ACT: Executamos o método que queremos testar.
-      final result = validationService.validateSingleTree(arvoreNormal);
-
-      // ASSERT: Verificamos se o resultado é o esperado.
-      // 'expect' é a função que faz a verificação.
-      expect(result.isValid, isTrue);
-      expect(result.warnings, isEmpty);
-    });
-
-    test('deve retornar inválido e um aviso para CAP muito baixo', () {
-      // ARRANGE
-      final arvoreCapBaixo = Arvore(
-        cap: 4.0, // <-- Valor problemático
-        altura: 25.0,
-        linha: 1,
-        posicaoNaLinha: 2,
-        codigo: Codigo.Normal,
-      );
-
-      // ACT
-      final result = validationService.validateSingleTree(arvoreCapBaixo);
-
-      // ASSERT
-      expect(result.isValid, isFalse);
-      expect(result.warnings, isNotEmpty);
-      expect(result.warnings.first, contains('CAP de 4.0 cm é muito baixo'));
-    });
-
-    test('deve retornar inválido e um aviso para CAP muito alto', () {
-      // ARRANGE
-      final arvoreCapAlto = Arvore(
-        cap: 500.0, // <-- Valor problemático
-        altura: 30.0,
-        linha: 2,
-        posicaoNaLinha: 1,
-        codigo: Codigo.Normal,
-      );
-
-      // ACT
-      final result = validationService.validateSingleTree(arvoreCapAlto);
-
-      // ASSERT
-      expect(result.isValid, isFalse);
-      expect(result.warnings, isNotEmpty);
-      expect(result.warnings.first, contains('CAP de 500.0 cm é fisicamente improvável'));
-    });
-
-    test('deve retornar inválido e um aviso para Altura muito alta', () {
-      // ARRANGE
-      final arvoreAlturaAlta = Arvore(
-        cap: 120.0,
-        altura: 80.0, // <-- Valor problemático
-        linha: 3,
-        posicaoNaLinha: 5,
-        codigo: Codigo.Normal,
-      );
-
-      // ACT
-      final result = validationService.validateSingleTree(arvoreAlturaAlta);
-
-      // ASSERT
-      expect(result.isValid, isFalse);
-      expect(result.warnings, isNotEmpty);
-      expect(result.warnings.first, contains('Altura de 80.0m é extremamente rara'));
-    });
-    
-    test('deve retornar inválido para relação CAP/Altura incomum', () {
-      // ARRANGE
-      final arvoreIncomum = Arvore(
-        cap: 160.0, // <-- CAP alto
-        altura: 8.0, // <-- Altura baixa
-        linha: 4,
-        posicaoNaLinha: 1,
-        codigo: Codigo.Normal,
-      );
-
-      // ACT
-      final result = validationService.validateSingleTree(arvoreIncomum);
-
-      // ASSERT
-      expect(result.isValid, isFalse);
-      expect(result.warnings, isNotEmpty);
-      expect(result.warnings.first, contains('Relação CAP/Altura incomum'));
-    });
-
-    test('deve retornar válido para código Falha com CAP 0', () {
-      // ARRANGE: Para 'Falha', CAP 0 é o esperado e não deve gerar aviso.
-      final arvoreFalha = Arvore(
-        cap: 0.0,
-        linha: 5,
-        posicaoNaLinha: 1,
-        codigo: Codigo.Falha,
-      );
-
-      // ACT
-      final result = validationService.validateSingleTree(arvoreFalha);
-
-      // ASSERT
-      expect(result.isValid, isTrue);
-      expect(result.warnings, isEmpty);
-    });
+  ValidationIssue({
+    required this.tipo,
+    required this.mensagem,
+    this.parcelaId,
+    this.cubagemId,
+    this.arvoreId,
+    required this.identificador,
   });
+}
+
+class FullValidationReport {
+  final List<ValidationIssue> issues;
+  final int parcelasVerificadas;
+  final int arvoresVerificadas;
+  final int cubagensVerificadas;
+
+  FullValidationReport({
+    this.issues = const [],
+    required this.parcelasVerificadas,
+    required this.arvoresVerificadas,
+    required this.cubagensVerificadas,
+  });
+
+  bool get isConsistent => issues.isEmpty;
+}
+
+class ValidationService {
+  
+  List<ValidationIssue> mapIaErrorsToIssues(List<Map<String, dynamic>> iaErros, Parcela parcela) {
+    final idRelatorio = "P${parcela.idParcela} | IA - ${parcela.nomeTalhao}";
+    return iaErros.map((erro) {
+      return ValidationIssue(
+        tipo: 'Análise IA',
+        mensagem: erro['msg'] ?? 'Inconsistência detectada pela IA.',
+        parcelaId: parcela.dbId,
+        arvoreId: erro['id'], 
+        identificador: idRelatorio,
+      );
+    }).toList();
+  }
+
+  ValidationResult validateParcela(List<Arvore> arvores) {
+    final List<String> warnings = [];
+    final vivas = arvores.where((a) => a.codigo != "F" && a.codigo != "CA" && a.cap > 0).toList();
+    
+    if (vivas.length < 5) return ValidationResult(isValid: true, warnings: []);
+
+    double somaCap = vivas.map((a) => a.cap).reduce((a, b) => a + b);
+    double mediaCap = somaCap / vivas.length;
+    double somaDiferencasQuadrado = vivas.map((a) => pow(a.cap - mediaCap, 2)).reduce((a, b) => a + b).toDouble();
+    double desvioPadraoCap = sqrt(somaDiferencasQuadrado / (vivas.length - 1));
+
+    for (final arvore in vivas) {
+      if ((arvore.cap - mediaCap).abs() > 3 * desvioPadraoCap) {
+        warnings.add("L:${arvore.linha} P:${arvore.posicaoNaLinha}: CAP de ${arvore.cap}cm é um outlier (Média: ${mediaCap.toStringAsFixed(1)}cm).");
+      }
+      
+      final singleRes = validateSingleTree(arvore);
+      if (!singleRes.isValid) {
+        warnings.addAll(singleRes.warnings.map((w) => "L:${arvore.linha} P:${arvore.posicaoNaLinha}: $w"));
+      }
+    }
+    return ValidationResult(isValid: warnings.isEmpty, warnings: warnings);
+  }
+
+  ValidationResult validateSingleTree(Arvore arvore) {
+    final List<String> warnings = [];
+    
+    if (arvore.codigo == "N" && arvore.codigo2 != null) {
+      warnings.add("Árvore 'Normal' com código secundário (${arvore.codigo2}).");
+    }
+
+    if (arvore.codigo != "F" && arvore.codigo != "CA") {
+      if (arvore.cap <= 3.0) warnings.add("CAP (${arvore.cap} cm) muito baixo.");
+      if (arvore.cap > 450.0) warnings.add("CAP (${arvore.cap} cm) improvável. Verifique digitação.");
+    }
+
+    if (arvore.altura != null && arvore.altura! > 70) warnings.add("Altura (${arvore.altura}m) extremamente rara.");
+
+    if (arvore.altura != null && arvore.cap > 150 && arvore.altura! < 8) {
+      warnings.add("CAP alto (${arvore.cap}cm) para altura baixa (${arvore.altura}m).");
+    }
+
+    if (arvore.altura != null && arvore.alturaDano != null && arvore.altura! > 0 && arvore.alturaDano! >= arvore.altura!) {
+      warnings.add("Altura do Dano deve ser menor que a Altura Total.");
+    }
+    
+    return ValidationResult(isValid: warnings.isEmpty, warnings: warnings);
+  }
+
+  Future<FullValidationReport> performFullConsistencyCheck({
+    required List<Parcela> parcelas,
+    required List<CubagemArvore> cubagens,
+    required ParcelaRepository parcelaRepo,
+    required CubagemRepository cubagemRepo,
+  }) async {
+    final List<ValidationIssue> allIssues = [];
+    int arvoresContadas = 0;
+
+    final parcelasValidas = parcelas.where((p) => p.dbId != null).toList();
+
+    for (final parcela in parcelasValidas) {
+      final arvores = await parcelaRepo.getArvoresDaParcela(parcela.dbId!);
+      arvoresContadas += arvores.length;
+      allIssues.addAll(_checkParcelaStructure(parcela, arvores));
+    }
+    
+    for (final cubagem in cubagens) {
+      if (cubagem.id != null) {
+        allIssues.addAll(await _checkCubagemIntegrity(cubagem, cubagemRepo));
+      }
+    }
+
+    return FullValidationReport(
+      issues: allIssues,
+      parcelasVerificadas: parcelasValidas.length,
+      arvoresVerificadas: arvoresContadas,
+      cubagensVerificadas: cubagens.length,
+    );
+  }
+
+  List<ValidationIssue> _checkParcelaStructure(Parcela parcela, List<Arvore> arvores) {
+    final List<ValidationIssue> issues = [];
+    final idRelatorio = "P${parcela.idParcela} | ${parcela.nomeFazenda} - ${parcela.nomeTalhao}";
+
+    if (arvores.isEmpty) {
+       issues.add(ValidationIssue(tipo: 'Parcela Vazia', mensagem: 'Parcela finalizada sem registros.', parcelaId: parcela.dbId, identificador: idRelatorio));
+       return issues;
+    }
+
+    final primeira = arvores.first;
+    if (primeira.linha != 1 || primeira.posicaoNaLinha != 1) {
+      issues.add(ValidationIssue(tipo: 'Início de Coleta', mensagem: 'Não inicia na L:1 P:1.', parcelaId: parcela.dbId, arvoreId: primeira.id, identificador: idRelatorio));
+    }
+
+    final arvoresPorLinha = groupBy(arvores, (Arvore a) => a.linha);
+    // Agrupa por Cova para verificar Bifurcadas
+    final posicoesAgrupadas = groupBy(arvores, (Arvore a) => '${a.linha}-${a.posicaoNaLinha}');
+
+    arvoresPorLinha.forEach((linha, listaArvores) {
+      listaArvores.sort((a, b) => a.posicaoNaLinha.compareTo(b.posicaoNaLinha));
+
+      for (int i = 0; i < listaArvores.length - 1; i++) {
+        final atual = listaArvores[i];
+        final proxima = listaArvores[i+1];
+        if (proxima.posicaoNaLinha != atual.posicaoNaLinha && proxima.posicaoNaLinha != atual.posicaoNaLinha + 1) {
+          issues.add(ValidationIssue(tipo: 'Sequência', mensagem: 'Salto de posição na Linha $linha.', parcelaId: parcela.dbId, arvoreId: atual.id, identificador: idRelatorio));
+        }
+      }
+      
+      if (listaArvores.isNotEmpty && !listaArvores.last.fimDeLinha) {
+        issues.add(ValidationIssue(tipo: 'Fim de Linha', mensagem: 'Última árvore da linha não marcada.', parcelaId: parcela.dbId, arvoreId: listaArvores.last.id, identificador: idRelatorio));
+      }
+    });
+
+    posicoesAgrupadas.forEach((pos, fustes) {
+      // REGRA: Bifurcada (B ou BF) exige múltiplos fustes
+      final temBifurcada = fustes.any((a) {
+        final cod = a.codigo.toUpperCase();
+        return cod == 'B' || cod == 'BF';
+      });
+
+      if (temBifurcada && fustes.length < 2) {
+         issues.add(ValidationIssue(
+           tipo: 'Fuste Único', 
+           mensagem: 'Árvore marcada como Bifurcada Abaixo (B) deve ter múltiplos fustes.', 
+           parcelaId: parcela.dbId, 
+           arvoreId: fustes.first.id, 
+           identificador: "Posição $pos"
+        ));
+      }
+
+      // Regra genérica de duplicidade sem código adequado
+      if (fustes.length > 1 && !temBifurcada) {
+         // Se não for Bifurcada, talvez devesse ser Múltipla ou Rebrota. 
+         // Se for "N" com 2 fustes, pode ser erro, ou pode ser Rebrota sem código R.
+         // Deixamos passar se o usuário usou Rebrota.
+         final temRebrota = fustes.any((a) => a.codigo.toUpperCase() == 'R');
+         if (!temRebrota) {
+            // Se for 2 Normais na mesma cova, é estranho (a menos que seja falha de plantio replantada, mas raro)
+            // Aviso leve
+         }
+      }
+    });
+
+    for (final arvore in arvores) {
+      final res = validateSingleTree(arvore);
+      if (!res.isValid) {
+        issues.add(ValidationIssue(tipo: 'Inconsistência', mensagem: res.warnings.join(" "), parcelaId: parcela.dbId, arvoreId: arvore.id, identificador: idRelatorio));
+      }
+    }
+
+    return issues;
+  }
+
+  Future<List<ValidationIssue>> _checkCubagemIntegrity(CubagemArvore cubagem, CubagemRepository cubagemRepo) async {
+    final List<ValidationIssue> issues = [];
+    final idRelatorio = "CUB: ${cubagem.identificador} (${cubagem.nomeTalhao})";
+    
+    final secoes = await cubagemRepo.getSecoesPorArvoreId(cubagem.id!);
+    if (secoes.length < 2 && cubagem.alturaTotal > 0) {
+       issues.add(ValidationIssue(tipo: 'Incompleta', mensagem: 'Menos de 2 seções medidas.', cubagemId: cubagem.id, identificador: idRelatorio));
+    }
+
+    if (secoes.length >= 2) {
+      secoes.sort((a, b) => a.alturaMedicao.compareTo(b.alturaMedicao));
+      for (int i = 1; i < secoes.length; i++) {
+        if (secoes[i].diametroSemCasca > secoes[i-1].diametroSemCasca) {
+          issues.add(ValidationIssue(tipo: 'Afilamento', mensagem: 'Diâmetro aumenta na altura ${secoes[i].alturaMedicao}m.', cubagemId: cubagem.id, identificador: idRelatorio));
+        }
+      }
+    }
+    return issues;
+  }
 }

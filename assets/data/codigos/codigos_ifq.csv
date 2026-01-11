@@ -7,13 +7,12 @@ CR;Caida Raiz / Vento;N;N;N;N;N;N
 D;Dominada;.;S;N;N;N;N
 F;Falha;N;N;N;N;N;N
 G;Geada;.;S;N;N;N;N
-H;Dominante (Assmann);.;S;S;S;N;S
 I;Pragas ou Doencas;.;S;.;N;S;N
 J;Ataque Macaco (Janelam.);.;S;.;N;S;N
 K;Ataque Macaco (Anelam.);.;S;.;N;S;N
 L;Vespa da Madeira;.;S;.;N;S;N
 M;Morta ou Seca;.;S;N;N;N;N
-N;Morto por Macaco Prego;.;S;N;N;N;N
+MA;Morto por Macaco Prego;.;S;N;N;N;N
 P;Ponteira Seca;.;S;.;N;S;N
 Q;Quebrada;.;S;C;N;S;N
 R;Rebrota;S;S;.;N;S;N

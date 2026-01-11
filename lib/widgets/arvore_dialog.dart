@@ -1,4 +1,4 @@
-// lib/widgets/arvore_dialog.dart (VERSÃO FINAL E CORRIGIDA)
+// Arquivo: lib/widgets/arvore_dialog.dart
 
 import 'package:flutter/material.dart';
 import 'package:geoforestv1/models/arvore_model.dart';
@@ -71,11 +71,14 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
   
   final _especieRepository = EspecieRepository();
 
+  // Lista dinâmica vinda do CSV
   List<CodigoFlorestal> _codigosDisponiveis = [];
-  CodigoFlorestal? _regraAtual;
-  bool _isLoadingCodigos = true;
+  
+  // Regras selecionadas (Objetos CodigoFlorestal)
+  CodigoFlorestal? _regraAtual; // Código 1
+  CodigoFlorestal? _regraCodigo2; // Código 2
 
-  Codigo2? _codigo2;
+  bool _isLoadingCodigos = true;
   bool _fimDeLinha = false;
   
   List<String> _fotosArvore = [];
@@ -95,7 +98,6 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
       _alturaController.text = widget.arvoreParaEditar!.altura?.toString().replaceAll('.', ',') ?? '';
       _alturaDanoController.text = widget.arvoreParaEditar!.alturaDano?.toString().replaceAll('.', ',') ?? '';
       _especieController.text = widget.arvoreParaEditar!.especie ?? '';
-      _codigo2 = widget.arvoreParaEditar!.codigo2;
     }
 
     _carregarRegras();
@@ -112,18 +114,26 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
         _codigosDisponiveis = dados;
         _isLoadingCodigos = false;
         
+        // --- INICIALIZAÇÃO DOS CÓDIGOS SALVOS ---
         if (widget.arvoreParaEditar != null) {
-           final codAntigo = widget.arvoreParaEditar!.codigo.name;
+           final cod1 = widget.arvoreParaEditar!.codigo;
+           final cod2 = widget.arvoreParaEditar!.codigo2;
            
+           // Tenta encontrar o objeto do Código 1
            try {
-             _regraAtual = _codigosDisponiveis.firstWhere(
-               (c) => c.sigla.toUpperCase() == codAntigo.toUpperCase() || 
-                      c.descricao.toUpperCase() == codAntigo.toUpperCase()
-             );
+             _regraAtual = _codigosDisponiveis.firstWhere((c) => c.sigla == cod1);
            } catch (_) {
              _regraAtual = _codigosDisponiveis.isNotEmpty ? _codigosDisponiveis.first : null;
            }
+
+           // Tenta encontrar o objeto do Código 2
+           if (cod2 != null && cod2.isNotEmpty) {
+             try {
+                _regraCodigo2 = _codigosDisponiveis.firstWhere((c) => c.sigla == cod2);
+             } catch (_) {}
+           }
         } else {
+           // Novo cadastro: Padrão (Geralmente o primeiro da lista, 'N')
            _regraAtual = _codigosDisponiveis.isNotEmpty ? _codigosDisponiveis.first : null;
         }
         
@@ -132,10 +142,35 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
     }
   }
 
+  // --- FILTRO INTELIGENTE PARA O CÓDIGO SECUNDÁRIO ---
+  List<CodigoFlorestal> get _codigosSecundariosDisponiveis {
+    return _codigosDisponiveis.where((c) {
+      // 1. Não pode ser igual ao código principal selecionado
+      if (_regraAtual != null && c.sigla == _regraAtual!.sigla) return false;
+      
+      final sigla = c.sigla.toUpperCase();
+
+      // 2. Não pode ser um código estrutural (Normal, Falha, Caída)
+      // "Uma árvore não pode ser 'Torta' e 'Normal' ao mesmo tempo"
+      // "Uma árvore não pode ser 'Torta' e 'Falha' (se é falha, não tem árvore)"
+      const naoPodeSerSecundario = ['N', 'F', 'CA']; 
+      if (naoPodeSerSecundario.contains(sigla)) return false;
+
+      // 3. Regra extra de segurança: Se o código bloqueia CAP (tipo Falha), não deve ser secundário
+      if (c.capBloqueado) return false;
+
+      return true;
+    }).toList();
+  }
+
   void _onCodigoChanged(CodigoFlorestal? novoCodigo) {
     if (novoCodigo == null) return;
     setState(() {
       _regraAtual = novoCodigo;
+      // Se mudar o código principal, e o secundário for incompatível (ex: virou igual), limpa o secundário
+      if (_regraCodigo2 != null && _regraCodigo2!.sigla == novoCodigo.sigla) {
+        _regraCodigo2 = null;
+      }
       _aplicarRegrasAosCampos();
     });
   }
@@ -143,20 +178,17 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
   void _aplicarRegrasAosCampos() {
     if (_regraAtual == null) return;
 
-    // 1. Regra de CAP
-    if (_regraAtual!.isCapBloqueado) { // Use o getter correto do modelo
+    if (_regraAtual!.capBloqueado) {
       _capController.text = "0"; 
     } else if (_capController.text == "0") {
-      _capController.clear(); 
+      _capController.clear();
     }
 
-    // 2. Regra de Altura Total
-    if (_regraAtual!.isAlturaBloqueada) { // Use o getter correto
+    if (_regraAtual!.alturaBloqueada) {
       _alturaController.text = ""; 
     }
     
-    // 3. Regra de Altura Dano
-    if (!_regraAtual!.requerAlturaDano) { // Use o getter correto
+    if (!_regraAtual!.requerAlturaDano) {
       _alturaDanoController.clear();
     }
   }
@@ -227,56 +259,15 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
       final int linha = int.tryParse(_linhaController.text) ?? widget.linhaAtual;
       final int posicao = int.tryParse(_posicaoController.text) ?? widget.posicaoNaLinhaAtual;
 
-      // --- MAPEAMENTO PARA O ENUM (CÓDIGO DE BANCO) ---
-      Codigo codigoParaSalvar = Codigo.Normal; 
-      
-      if (_regraAtual != null) {
-        final sigla = _regraAtual!.sigla.toUpperCase();
-        final desc = _regraAtual!.descricao.toUpperCase();
+      // Obtém a String (Sigla) dos códigos selecionados
+      String codigoParaSalvar = _regraAtual?.sigla ?? "N";
+      String? codigo2ParaSalvar = _regraCodigo2?.sigla;
 
-        try {
-          codigoParaSalvar = Codigo.values.firstWhere((e) {
-             final eName = e.name.toUpperCase();
-             return eName == desc || eName == sigla;
-          });
-        } catch (_) {
-          // --- MAPEAMENTO MANUAL PARA SIGLAS ESPECIAIS ---
-          switch (sigla) {
-            case 'A': codigoParaSalvar = Codigo.BifurcadaAcima; break;
-            case 'B': case 'BF': codigoParaSalvar = Codigo.BifurcadaAbaixo; break;
-            case 'CA': codigoParaSalvar = Codigo.Caida; break;
-            case 'CR': codigoParaSalvar = Codigo.CaidaRaizVento; break;
-            case 'D': codigoParaSalvar = Codigo.Dominada; break;
-            case 'H': codigoParaSalvar = Codigo.DominanteAssmann; break;
-            case 'J': codigoParaSalvar = Codigo.AtaqueMacacoJanela; break;
-            case 'K': codigoParaSalvar = Codigo.AtaqueMacacoAnel; break;
-            case 'L': codigoParaSalvar = Codigo.VespaMadeira; break;
-            case 'M': codigoParaSalvar = Codigo.MortaOuSeca; break;
-            case 'DS': codigoParaSalvar = Codigo.MarcadaDesbaste; break;
-            case 'W': codigoParaSalvar = Codigo.DeitadaVento; break;
-            case 'X': codigoParaSalvar = Codigo.FeridaBase; break;
-            
-            // Novos códigos BIO/Qualidade
-            case 'I': 
-                if (desc.contains("PRAGAS")) codigoParaSalvar = Codigo.PragasOuDoencas;
-                else codigoParaSalvar = Codigo.Ingresso;
-                break;
-            case 'GRAE': codigoParaSalvar = Codigo.GramineaExotica; break;
-            case 'GRAN': codigoParaSalvar = Codigo.GramineaNativa; break;
-            case 'SOLE': codigoParaSalvar = Codigo.SoloExposto; break;
-            case 'ARB': codigoParaSalvar = Codigo.Arbusto; break;
-            case 'P2': codigoParaSalvar = Codigo.Peso2; break;
-            case 'D3S': codigoParaSalvar = Codigo.DefeitoSup; break;
-            case 'D3M': codigoParaSalvar = Codigo.DefeitoMed; break;
-            case 'D3I': codigoParaSalvar = Codigo.DefeitoInf; break;
-            case 'SUB': codigoParaSalvar = Codigo.SubAmostra; break;
-            case 'SUE': codigoParaSalvar = Codigo.SubstEtiqueta; break;
-            case 'GPS': codigoParaSalvar = Codigo.CodigoGPS; break;
-            case 'AVA': codigoParaSalvar = Codigo.AmostraVazia; break;
-            
-            default: codigoParaSalvar = Codigo.Outro;
-          }
-        }
+      // Regra de Dominante (Se o código for H, salva como N mas marca flag)
+      bool isDominante = (widget.arvoreParaEditar?.dominante ?? false);
+      if (codigoParaSalvar.toUpperCase() == 'H') {
+         isDominante = true;
+         codigoParaSalvar = "N"; // Salva como Normal
       }
 
       final arvore = Arvore(
@@ -287,10 +278,12 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
         especie: _especieController.text.trim(), 
         linha: linha,
         posicaoNaLinha: posicao,
-        codigo: codigoParaSalvar, 
-        codigo2: codigoParaSalvar == Codigo.Normal ? null : _codigo2,
+        
+        codigo: codigoParaSalvar, // String
+        codigo2: codigo2ParaSalvar, // String
+        
         fimDeLinha: _fimDeLinha,
-        dominante: (_regraAtual?.permiteDominante ?? false) && (widget.arvoreParaEditar?.dominante ?? false),
+        dominante: isDominante,
         photoPaths: _fotosArvore, 
         lastModified: DateTime.now(),
       );
@@ -309,12 +302,12 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     
-    // VARIÁVEIS DE CONTROLE VISUAL (VÊM DO CSV)
-    bool capHabilitado = !(_regraAtual?.isCapBloqueado ?? false);
-    bool alturaHabilitada = !(_regraAtual?.isAlturaBloqueada ?? false);
+    // Regras Visuais
+    bool capHabilitado = !(_regraAtual?.capBloqueado ?? false);
+    bool alturaHabilitada = !(_regraAtual?.alturaBloqueada ?? false);
     bool mostraDano = _regraAtual?.requerAlturaDano ?? false;
-    bool alturaObrigatoria = _regraAtual?.isAlturaObrigatoria ?? false;
-    bool permiteFuste = (_regraAtual?.permiteMultifuste ?? false) || widget.isAdicionandoFuste;
+    bool alturaObrigatoria = _regraAtual?.alturaObrigatoria ?? false;
+    bool permiteFuste = (_regraAtual?.permiteMultifuste ?? true) || widget.isAdicionandoFuste;
 
     return Dialog(
       insetPadding: const EdgeInsets.all(16.0),
@@ -351,7 +344,6 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // LINHA E POSIÇÃO
                       Row(
                         children: [
                           Expanded(
@@ -377,11 +369,11 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                       ),
                       const SizedBox(height: 16),
                       
-                      // DROPDOWN DINÂMICO (DO CSV)
+                      // 1. DROPDOWN PRINCIPAL (Todas as opções do CSV)
                       DropdownButtonFormField<CodigoFlorestal>(
                         value: _regraAtual,
                         isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Código (Sigla)'),
+                        decoration: const InputDecoration(labelText: 'Código 1 (Principal)'),
                         items: _codigosDisponiveis.map((cod) {
                           return DropdownMenuItem(
                             value: cod,
@@ -393,21 +385,28 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                       
                       const SizedBox(height: 16),
                       
-                      // CÓDIGO SECUNDÁRIO
-                      DropdownButtonFormField<Codigo2?>(
-                        value: (_regraAtual?.sigla == "N") ? null : _codigo2, 
+                      // 2. DROPDOWN SECUNDÁRIO (Lista Filtrada)
+                      DropdownButtonFormField<CodigoFlorestal>(
+                        value: _regraCodigo2, 
+                        isExpanded: true,
                         decoration: const InputDecoration(
                           labelText: 'Código 2 (Opcional)',
                         ),
                         items: [
                           const DropdownMenuItem(value: null, child: Text('Nenhum')),
-                          ...Codigo2.values.map((s) => DropdownMenuItem(value: s, child: Text(s.name))),
+                          // Usa a lista filtrada aqui
+                          ..._codigosSecundariosDisponiveis.map((cod) {
+                             return DropdownMenuItem(
+                               value: cod,
+                               child: Text("${cod.sigla} - ${cod.descricao}", overflow: TextOverflow.ellipsis),
+                             );
+                          }),
                         ],
-                        onChanged: (value) => setState(() => _codigo2 = value),
+                        onChanged: (val) => setState(() => _regraCodigo2 = val),
                       ),
+                      
                       const SizedBox(height: 16),
 
-                      // ESPÉCIE (AUTOCOMPLETE)
                       if (widget.isBio)
                         Autocomplete<Especie>(
                           optionsBuilder: (textValue) async {
@@ -432,9 +431,8 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                           },
                         ),
 
-                      const SizedBox(height: 16),
+                      if (widget.isBio) const SizedBox(height: 16),
                       
-                      // CAP
                       TextFormField(
                         controller: _capController,
                         enabled: capHabilitado,
@@ -444,12 +442,14 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                           fillColor: Colors.grey[200],
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        validator: (v) => (capHabilitado && (v == null || v.isEmpty)) ? 'Obrigatório' : null,
+                        validator: (v) {
+                          if (capHabilitado && (v == null || v.isEmpty)) return 'Obrigatório';
+                          return null;
+                        },
                       ),
                       
                       const SizedBox(height: 16),
                       
-                      // ALTURA TOTAL
                       TextFormField(
                         controller: _alturaController,
                         enabled: alturaHabilitada,
@@ -460,17 +460,22 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                           fillColor: Colors.grey[200],
                         ),
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        validator: (v) => (alturaObrigatoria && (v == null || v.isEmpty)) ? 'Altura Obrigatória' : null,
+                        validator: (v) {
+                          if (alturaObrigatoria && (v == null || v.isEmpty)) {
+                            return 'Altura Obrigatória';
+                          }
+                          return null;
+                        },
                       ),
 
-                      // ALTURA DANO (DINÂMICO)
                       if (mostraDano)
                         Padding(
                           padding: const EdgeInsets.only(top: 16.0),
                           child: TextFormField(
                             controller: _alturaDanoController,
                             decoration: const InputDecoration(
-                              labelText: 'Altura do Dano/Bifurcação (m)',
+                              labelText: 'Altura do Dano/Bifurcação (m) *',
+                              border: OutlineInputBorder(),
                               suffixIcon: Icon(Icons.warning_amber_rounded, color: Colors.orange)
                             ),
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -480,7 +485,6 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
 
                       const SizedBox(height: 16),
 
-                      // SEÇÃO DE FOTO E FIM DE LINHA
                       Row(
                         children: [
                           _processandoFoto 
@@ -523,7 +527,6 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
               
               const SizedBox(height: 24),
               
-              // BOTÕES DE AÇÃO
               Wrap(
                 alignment: WrapAlignment.end,
                 spacing: 8.0,
@@ -538,7 +541,6 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                     : [
                         TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
                         
-                        // Botão de Adicionar Fuste (só aparece se o CSV permitir)
                         if (permiteFuste)
                            OutlinedButton(onPressed: () => _submit(mesmoFuste: true), child: const Text('Adic. Fuste')),
                         

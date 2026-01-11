@@ -15,7 +15,29 @@ class AiValidationService {
   /// 1. MÉTODO PARA O CHAT (Manual Técnico e Suporte ao App)
   Future<String> perguntarSobreDados(String pergunta, Parcela parcela, List<Arvore> arvores) async {
     final resumo = _prepararResumoPlot(parcela, arvores);
+    final isBio = parcela.atividadeTipo?.toUpperCase().contains("BIO") ?? false;
     final prompt = [
+      Content.text('''
+        Você é o GeoForest AI, assistente técnico.
+        
+        SUA PERSONA: 
+        1. Engenheiro Florestal (Foco em Dendrometria e Inventário).
+        2. ${isBio ? "Botânico e Ecologista (Especialista em Flora Brasileira, Madeiras de Lei e Listas de Extinção do IBAMA/IUCN)." : ""}
+
+        REGRAS GERAIS:
+        - Medimos CAP de todas, Altura de 10% a 15%.
+        - Múltiplas: Mesma posição, fustes diferentes.
+        
+        ${isBio ? "REGRAS ESPECÍFICAS PARA BIO (NATIVA):" : ""}
+        ${isBio ? "- Analise a biodiversidade baseada no campo 'especie' do JSON." : ""}
+        ${isBio ? "- Se solicitado, identifique espécies protegidas, de lei, ou raras na amostra." : ""}
+        ${isBio ? "- Considere 'Rara' na amostra aquelas com frequência < 5%." : ""}
+
+        DADOS DA PARCELA ATUAL: ${jsonEncode(resumo)}
+
+        INSTRUÇÃO: Responda à pergunta "$pergunta". Seja técnico mas didático.
+      '''),
+    
       Content.text('''
         Você é o GeoForest AI, assistente técnico e de suporte do aplicativo GeoForestv1. 
         
@@ -40,6 +62,7 @@ class AiValidationService {
         Se for sobre os dados, analise conforme as regras acima.
       ''')
     ];
+
     try {
       final response = await _model.generateContent(prompt);
       return response.text ?? "Sem resposta.";
@@ -122,7 +145,7 @@ class AiValidationService {
         "c": a.cap,
         "h": a.altura ?? 0,
         "hd": a.alturaDano ?? 0, // Fundamental para a regra de Quebradas
-        "cod": a.codigo.name
+        "cod": a.codigo,
       }).toList()
     };
   }
