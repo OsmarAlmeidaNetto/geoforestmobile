@@ -1,5 +1,3 @@
-// Arquivo: lib/widgets/arvore_dialog.dart
-
 import 'package:flutter/material.dart';
 import 'package:geoforestv1/models/arvore_model.dart';
 import 'package:geoforestv1/models/especie_model.dart';
@@ -74,9 +72,11 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
   // Lista dinâmica vinda do CSV
   List<CodigoFlorestal> _codigosDisponiveis = [];
   
-  // Regras selecionadas (Objetos CodigoFlorestal)
-  CodigoFlorestal? _regraAtual; // Código 1
-  CodigoFlorestal? _regraCodigo2; // Código 2
+  // Regra selecionada PRINCIPAL (Objeto CodigoFlorestal)
+  CodigoFlorestal? _regraAtual; 
+  
+  // --- MUDANÇA 1: Lista de siglas para múltiplos códigos secundários ---
+  List<String> _siglasSecundariasSelecionadas = []; 
 
   bool _isLoadingCodigos = true;
   bool _fimDeLinha = false;
@@ -117,7 +117,7 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
         // --- INICIALIZAÇÃO DOS CÓDIGOS SALVOS ---
         if (widget.arvoreParaEditar != null) {
            final cod1 = widget.arvoreParaEditar!.codigo;
-           final cod2 = widget.arvoreParaEditar!.codigo2;
+           final cod2String = widget.arvoreParaEditar!.codigo2; // Ex: "A,B"
            
            // Tenta encontrar o objeto do Código 1
            try {
@@ -126,11 +126,10 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
              _regraAtual = _codigosDisponiveis.isNotEmpty ? _codigosDisponiveis.first : null;
            }
 
-           // Tenta encontrar o objeto do Código 2
-           if (cod2 != null && cod2.isNotEmpty) {
-             try {
-                _regraCodigo2 = _codigosDisponiveis.firstWhere((c) => c.sigla == cod2);
-             } catch (_) {}
+           // --- MUDANÇA 2: Parse da String para Lista ---
+           if (cod2String != null && cod2String.isNotEmpty) {
+             // Separa por vírgula e remove espaços
+             _siglasSecundariasSelecionadas = cod2String.split(',').map((e) => e.trim()).toList();
            }
         } else {
            // Novo cadastro: Padrão (Geralmente o primeiro da lista, 'N')
@@ -151,12 +150,10 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
       final sigla = c.sigla.toUpperCase();
 
       // 2. Não pode ser um código estrutural (Normal, Falha, Caída)
-      // "Uma árvore não pode ser 'Torta' e 'Normal' ao mesmo tempo"
-      // "Uma árvore não pode ser 'Torta' e 'Falha' (se é falha, não tem árvore)"
       const naoPodeSerSecundario = ['N', 'F', 'CA']; 
       if (naoPodeSerSecundario.contains(sigla)) return false;
 
-      // 3. Regra extra de segurança: Se o código bloqueia CAP (tipo Falha), não deve ser secundário
+      // 3. Regra extra de segurança
       if (c.capBloqueado) return false;
 
       return true;
@@ -167,10 +164,8 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
     if (novoCodigo == null) return;
     setState(() {
       _regraAtual = novoCodigo;
-      // Se mudar o código principal, e o secundário for incompatível (ex: virou igual), limpa o secundário
-      if (_regraCodigo2 != null && _regraCodigo2!.sigla == novoCodigo.sigla) {
-        _regraCodigo2 = null;
-      }
+      // Se mudar o código principal, remove ele da lista de secundários se estiver lá
+      _siglasSecundariasSelecionadas.remove(novoCodigo.sigla);
       _aplicarRegrasAosCampos();
     });
   }
@@ -231,6 +226,56 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
       if (mounted) setState(() => _processandoFoto = false);
     }
   }
+  
+  // --- MUDANÇA 3: Função para mostrar o Dialog de Multi-Seleção ---
+  Future<void> _mostrarDialogoMultiplaEscolha() async {
+    final List<CodigoFlorestal> opcoes = _codigosSecundariosDisponiveis;
+    
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text("Códigos Secundários"),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: opcoes.length,
+                  itemBuilder: (ctx, index) {
+                    final cod = opcoes[index];
+                    final isSelected = _siglasSecundariasSelecionadas.contains(cod.sigla);
+                    return CheckboxListTile(
+                      title: Text("${cod.sigla} - ${cod.descricao}"),
+                      value: isSelected,
+                      onChanged: (bool? val) {
+                        setDialogState(() {
+                          if (val == true) {
+                            _siglasSecundariasSelecionadas.add(cod.sigla);
+                          } else {
+                            _siglasSecundariasSelecionadas.remove(cod.sigla);
+                          }
+                        });
+                        // Atualiza a tela principal também
+                        this.setState(() {});
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text("OK"),
+                )
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
 
   @override
   void dispose() {
@@ -261,7 +306,14 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
 
       // Obtém a String (Sigla) dos códigos selecionados
       String codigoParaSalvar = _regraAtual?.sigla ?? "N";
-      String? codigo2ParaSalvar = _regraCodigo2?.sigla;
+      
+      // --- MUDANÇA 4: Juntar os códigos secundários numa String ---
+      // Exemplo: se selecionou 'T' e 'V', vira "T,V"
+      String? codigo2ParaSalvar;
+      if (_siglasSecundariasSelecionadas.isNotEmpty) {
+        _siglasSecundariasSelecionadas.sort(); // Opcional: ordenar alfabeticamente
+        codigo2ParaSalvar = _siglasSecundariasSelecionadas.join(',');
+      }
 
       // Regra de Dominante (Se o código for H, salva como N mas marca flag)
       bool isDominante = (widget.arvoreParaEditar?.dominante ?? false);
@@ -280,7 +332,7 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
         posicaoNaLinha: posicao,
         
         codigo: codigoParaSalvar, // String
-        codigo2: codigo2ParaSalvar, // String
+        codigo2: codigo2ParaSalvar, // String (agora pode ser "A,B")
         
         fimDeLinha: _fimDeLinha,
         dominante: isDominante,
@@ -385,24 +437,23 @@ class _ArvoreDialogState extends State<ArvoreDialog> {
                       
                       const SizedBox(height: 16),
                       
-                      // 2. DROPDOWN SECUNDÁRIO (Lista Filtrada)
-                      DropdownButtonFormField<CodigoFlorestal>(
-                        value: _regraCodigo2, 
-                        isExpanded: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Código 2 (Opcional)',
+                      // --- MUDANÇA 5: NOVO SELETOR MÚLTIPLO ---
+                      InkWell(
+                        onTap: _mostrarDialogoMultiplaEscolha,
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Códigos Secundários',
+                            border: OutlineInputBorder(),
+                            suffixIcon: Icon(Icons.arrow_drop_down),
+                          ),
+                          child: Text(
+                            _siglasSecundariasSelecionadas.isEmpty 
+                                ? 'Nenhum' 
+                                : _siglasSecundariasSelecionadas.join(', '),
+                            style: const TextStyle(fontSize: 16),
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                        items: [
-                          const DropdownMenuItem(value: null, child: Text('Nenhum')),
-                          // Usa a lista filtrada aqui
-                          ..._codigosSecundariosDisponiveis.map((cod) {
-                             return DropdownMenuItem(
-                               value: cod,
-                               child: Text("${cod.sigla} - ${cod.descricao}", overflow: TextOverflow.ellipsis),
-                             );
-                          }),
-                        ],
-                        onChanged: (val) => setState(() => _regraCodigo2 = val),
                       ),
                       
                       const SizedBox(height: 16),
